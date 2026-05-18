@@ -188,7 +188,7 @@
             lista et annet sted.
           </li>
           <li>
-            <strong>Grupper:</strong> Definer skolene eller andre tilhørighetene som spillerne
+            <strong>Grupper:</strong> Definer skoler, klasser eller annen tilhørighet som spillerne
             kan ha til felles. Algoritmen prøver å gi hver spiller minst én lagkamerat fra
             samme gruppe.
           </li>
@@ -199,7 +199,9 @@
           <li>
             <strong>Generer lag:</strong> Sett opp den aktuelle turneringen (antall lag,
             kamptider, lagstørrelse, kamplengde), velg hvem som deltar, og la generatoren
-            foreslå flere alternative lagsammensetninger.
+            foreslå flere alternative lagsammensetninger. Hvert forslag kan eksporteres til
+            CSV (kan leses av Excel o.l.) med lagoppsett, kamptider, forelder-trenere
+            og mulige lånespillere per kamptid.
           </li>
           <li>
             <strong>Data:</strong> Eksporter en sikkerhetskopi (JSON) eller importer data fra
@@ -210,12 +212,12 @@
         <h2>Slik fungerer algoritmen</h2>
         <p>
           For hvert "Generer"-trykk kjører algoritmen mange forsøk (rundt 60). I hvert forsøk
-          plasserer den spillere ett etter ett på lag, der spillere med få mulige lag (på grunn
+          plasserer den spillere en etter en på lag, der spillere med få mulige lag (på grunn
           av tilgjengelighet) plasseres først. Hver plassering velger laget som best balanserer
           de myke kravene.
         </p>
         <p>
-          Etter hvert forsøk skåres hele løsningen, og de fem beste, distinkte forslagene
+          Etter hvert forsøk skåres hele løsningen, og de fem beste, unike forslagene
           presenteres. Lavere skår er bedre.
         </p>
 
@@ -231,7 +233,7 @@
           <li>
             <strong>Ferdighetsbalanse:</strong> Hvert lag skal ha en fordeling som ligner på
             den i hele deltakergruppa. Eksempel: hvis 4 av 14 deltakere er F1, og det skal
-            spilles på 2 lag, er forventet fordeling ca. 2 F1 per lag.
+            spilles på 2 lag, er forventet fordeling 2 F1 per lag.
           </li>
           <li>
             <strong>Gruppelagkamerat:</strong> Hver spiller bør ha minst én annen fra samme
@@ -251,7 +253,8 @@
           Alt kjører lokalt i nettleseren din. Spillere, grupper, trenere, siste oppsett og
           siste forslag lagres i nettleserens egen lagring (localStorage). Ingen pålogging,
           ingen skytjeneste, ingenting sendes ut. Hvis du tømmer nettleserdata eller bytter
-          maskin, må du eksportere en JSON-sikkerhetskopi fra Data-fanen først.
+          maskin, må du eksportere en JSON-sikkerhetskopi fra Data-fanen først
+          for å beholde dataene.
         </p>
 
         <h2>Status</h2>

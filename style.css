@@ -284,6 +284,13 @@ pre {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.forslag h3 .eksporterForslag {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: normal;
 }
 
 .forslag .skaar {

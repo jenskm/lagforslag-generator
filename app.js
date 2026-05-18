@@ -978,7 +978,11 @@ function tegnResultater(res) {
     const div = document.createElement('div');
     div.className = 'forslag';
     div.innerHTML = `
-      <h3>Forslag ${idx + 1} <span class="skaar">skår: ${f.skaar.toFixed(1)} (lavere = bedre)</span></h3>
+      <h3>
+        Forslag ${idx + 1}
+        <span class="skaar">skår: ${f.skaar.toFixed(1)} (lavere = bedre)</span>
+        <button class="eksporterForslag" data-forslag-idx="${idx}">Eksporter til CSV</button>
+      </h3>
       <div class="lagrutenett">
         ${f.lag.map((team, i) => tegnLag(team, i, f.ktx, f.lag)).join('')}
       </div>
@@ -991,6 +995,65 @@ function tegnResultater(res) {
     `;
     out.appendChild(div);
   });
+}
+
+function eksporterForslagCsv(forslag, idx, ktx) {
+  const rader = [];
+  rader.push(`Forslag ${idx + 1}`);
+  rader.push(`Skår,${forslag.skaar.toFixed(1)}`);
+  rader.push('');
+
+  forslag.lag.forEach((team, i) => {
+    const tider = (ktx.input.lagTider[i] || []).join(', ');
+    rader.push(`Lag ${i + 1}`);
+    if (tider) rader.push(`Kamptider,${csvEsc(tider)}`);
+    rader.push('Spillernr,Navn,Gruppe,Ferdighet,Forelder-trener');
+    const sortert = [...team].sort((a, b) => a - b);
+    for (const nr of sortert) {
+      const s = ktx.spillerVedNr.get(nr);
+      if (!s) continue;
+      const trenerNavn = ktx.tilgjengeligeTrenereForBarn(nr)
+        .map(x => x.trener.navn || '')
+        .filter(Boolean)
+        .join(', ');
+      rader.push([
+        nr,
+        csvEsc(s.navn),
+        csvEsc(gruppeNavnFor(s.gruppeId)),
+        s.ferdighet,
+        csvEsc(trenerNavn)
+      ].join(','));
+    }
+
+    const laan = laaneKandidaterPerTid(team, i, ktx, forslag.lag);
+    if (laan.length > 0) {
+      rader.push('Mulige lånespillere');
+      rader.push('Kamptid,Spillere');
+      for (const { tid, kandidater } of laan) {
+        const liste = kandidater.map(n => '#' + n).join(', ');
+        rader.push(`${csvEsc(tid)},${csvEsc(liste)}`);
+      }
+    }
+    rader.push(''); // tom rad mellom lag
+  });
+
+  if (forslag.uplassert && forslag.uplassert.length > 0) {
+    rader.push('Uplasserte spillere');
+    rader.push('Spillernr,Navn,Gruppe,Ferdighet');
+    for (const nr of forslag.uplassert) {
+      const s = ktx.spillerVedNr.get(nr);
+      if (!s) continue;
+      rader.push([
+        nr,
+        csvEsc(s.navn),
+        csvEsc(gruppeNavnFor(s.gruppeId)),
+        s.ferdighet
+      ].join(','));
+    }
+  }
+
+  // UTF-8 BOM for at Excel skal vise norske tegn riktig.
+  lastNed(`forslag-${idx + 1}.csv`, '﻿' + rader.join('\n'), 'text/csv;charset=utf-8');
 }
 
 function tegnLag(team, i, ktx, alleLag) {
@@ -1028,14 +1091,13 @@ function tegnLag(team, i, ktx, alleLag) {
   `;
 }
 
-function laaneForslag(team, lagIdx, ktx, alleLag) {
+function laaneKandidaterPerTid(team, lagIdx, ktx, alleLag) {
   // For hver kamptid på dette laget, identifiser spillere fra andre lag
   // hvis lag IKKE har kamp på samme tid, og som selv er tilgjengelige.
   const lagT = ktx.input.lagTider[lagIdx];
-  if (!lagT.length) return '';
-
+  if (!lagT.length) return [];
   const varighet = ktx.input.varighet;
-  const linjer = [];
+  const ut = [];
   for (const tid of lagT) {
     const kandidater = [];
     for (let i = 0; i < ktx.input.antallLag; i++) {
@@ -1047,11 +1109,17 @@ function laaneForslag(team, lagIdx, ktx, alleLag) {
         if (ktx.spillerKanPaaTid(nr, tid)) kandidater.push(nr);
       }
     }
-    if (kandidater.length === 0) continue;
+    if (kandidater.length > 0) ut.push({ tid, kandidater });
+  }
+  return ut;
+}
+
+function laaneForslag(team, lagIdx, ktx, alleLag) {
+  const linjer = laaneKandidaterPerTid(team, lagIdx, ktx, alleLag).map(({ tid, kandidater }) => {
     const navn = kandidater.slice(0, 6).map(nr => '#' + nr).join(', ');
     const merOver = kandidater.length > 6 ? ` (+${kandidater.length - 6})` : '';
-    linjer.push(`<div><strong>${escapeHtml(tid)}:</strong> kan låne ${navn}${merOver}</div>`);
-  }
+    return `<div><strong>${escapeHtml(tid)}:</strong> kan låne ${navn}${merOver}</div>`;
+  });
   if (!linjer.length) return '';
   return `<div class="laaneBoks">${linjer.join('')}</div>`;
 }
@@ -1178,6 +1246,16 @@ function init() {
       document.getElementById('tomForslag').hidden = false;
       status.textContent = `${res.forslag.length} forslag.`;
     }, 30);
+  });
+
+  document.getElementById('resultater').addEventListener('click', e => {
+    const btn = e.target.closest('[data-forslag-idx]');
+    if (!btn || !data.sisteForslag) return;
+    const idx = parseInt(btn.dataset.forslagIdx, 10);
+    const f = data.sisteForslag.forslag[idx];
+    if (!f) return;
+    const ktx = bygKontekst(data.sisteForslag.inputSnapshot);
+    eksporterForslagCsv(f, idx, ktx);
   });
 
   document.getElementById('tomForslag').addEventListener('click', () => {
