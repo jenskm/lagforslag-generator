@@ -1,0 +1,422 @@
+:root {
+  --bg: #f6f7f9;
+  --kort: #fff;
+  --grense: #d9dde2;
+  --tekst: #1c2128;
+  --dempet: #6a737d;
+  --primaer: #1f6feb;
+  --primaer-mork: #1859c6;
+  --advarsel: #b97400;
+  --advarsel-bg: #fff4e0;
+  --fare: #cf222e;
+  --suksess: #1a7f37;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--tekst);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+header {
+  background: var(--kort);
+  border-bottom: 1px solid var(--grense);
+  padding: 12px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+header h1 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+}
+
+nav {
+  display: flex;
+  gap: 4px;
+}
+
+nav button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--dempet);
+}
+
+nav button.aktiv {
+  background: var(--bg);
+  border-color: var(--grense);
+  color: var(--tekst);
+  font-weight: 600;
+}
+
+main {
+  padding: 20px 24px 60px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.fane {
+  display: none;
+}
+
+.fane.aktiv {
+  display: block;
+}
+
+h2 { margin: 0 0 12px; font-size: 17px; }
+h3 { margin: 24px 0 8px; font-size: 15px; }
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--grense);
+  background: var(--kort);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover { background: #f0f2f5; }
+
+button.primaer {
+  background: var(--primaer);
+  color: white;
+  border-color: var(--primaer-mork);
+  font-weight: 600;
+}
+
+button.primaer:hover { background: var(--primaer-mork); }
+
+button.fare {
+  color: var(--fare);
+  border-color: var(--fare);
+}
+
+button.fare:hover {
+  background: var(--fare);
+  color: white;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--grense);
+  border-radius: 3px;
+  background: var(--kort);
+}
+
+.verktoylinje {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.info {
+  color: var(--dempet);
+  font-size: 12px;
+}
+
+.tomTekst {
+  color: var(--dempet);
+  font-style: italic;
+  padding: 16px 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--kort);
+  border: 1px solid var(--grense);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+thead th {
+  text-align: left;
+  padding: 8px 10px;
+  background: #f0f2f5;
+  border-bottom: 1px solid var(--grense);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--dempet);
+}
+
+thead th small {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+tbody td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody td input[type="text"],
+tbody td input[type="number"],
+tbody td select {
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+}
+
+tbody td input[type="text"]:focus,
+tbody td input[type="number"]:focus,
+tbody td select:focus {
+  border-color: var(--grense);
+  background: var(--kort);
+}
+
+input.ugyldig,
+tbody td input.ugyldig {
+  border-color: var(--fare) !important;
+  background: #ffeef0 !important;
+}
+
+.formathjelp {
+  display: block;
+  font-size: 12px;
+  color: var(--dempet);
+  margin: 4px 0 8px;
+}
+
+tbody td input[type="number"] { width: 60px; }
+
+.slett {
+  color: var(--fare);
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+}
+
+.slett:hover {
+  background: var(--fare);
+  color: white;
+}
+
+.oppsett {
+  background: var(--kort);
+  padding: 16px;
+  border: 1px solid var(--grense);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.rad {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#lagTider .lagRad {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+#lagTider .lagRad label {
+  min-width: 80px;
+  font-weight: 600;
+}
+
+#lagTider input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+#deltakereTabell td:first-child,
+#trenereDeltagereTabell td:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+pre {
+  background: var(--kort);
+  border: 1px solid var(--grense);
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+/* Resultater */
+.forslag {
+  background: var(--kort);
+  border: 1px solid var(--grense);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.forslag h3 {
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.forslag .skaar {
+  font-size: 13px;
+  color: var(--dempet);
+  font-weight: normal;
+}
+
+.lagrutenett {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.lagBoks {
+  background: var(--bg);
+  border: 1px solid var(--grense);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.lagBoks h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lagBoks h4 .meta {
+  font-weight: normal;
+  color: var(--dempet);
+  font-size: 12px;
+}
+
+.lagBoks ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lagBoks li {
+  padding: 2px 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.lagBoks li .spillerMeta {
+  color: var(--dempet);
+  font-size: 12px;
+}
+
+.lagBoks .tider {
+  font-size: 12px;
+  color: var(--dempet);
+  margin-bottom: 6px;
+}
+
+.lagBoks .trener {
+  font-size: 12px;
+  color: var(--suksess);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.lagBoks .ingenTrener {
+  color: var(--advarsel);
+}
+
+.brudd {
+  background: var(--advarsel-bg);
+  border-left: 3px solid var(--advarsel);
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 3px;
+}
+
+.brudd ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.ingenBrudd {
+  background: #e6f7eb;
+  border-left: 3px solid var(--suksess);
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 3px;
+  color: var(--suksess);
+}
+
+.laaneBoks {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--dempet);
+  border-top: 1px dashed var(--grense);
+  padding-top: 6px;
+}
+
+.laaneBoks strong { color: var(--tekst); }
+
+.om-tekst {
+  max-width: 720px;
+  background: var(--kort);
+  border: 1px solid var(--grense);
+  border-radius: 6px;
+  padding: 24px 32px;
+  line-height: 1.6;
+}
+
+.om-tekst h2 {
+  margin-top: 24px;
+  font-size: 17px;
+}
+
+.om-tekst h2:first-child { margin-top: 0; }
+
+.om-tekst h3 {
+  font-size: 14px;
+  margin-top: 16px;
+}
+
+.om-tekst p,
+.om-tekst li {
+  font-size: 14px;
+}
+
+.om-tekst ol,
+.om-tekst ul {
+  padding-left: 20px;
+}
+
+.om-tekst li {
+  margin-bottom: 6px;
+}

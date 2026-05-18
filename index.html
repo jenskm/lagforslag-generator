@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lagforslag-generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Lagforslag-generator</h1>
+    <nav id="faner">
+      <button data-fane="spillere" class="aktiv">Spillere</button>
+      <button data-fane="grupper">Grupper</button>
+      <button data-fane="trenere">Trenere</button>
+      <button data-fane="generer">Generer lag</button>
+      <button data-fane="data">Data</button>
+      <button data-fane="om">Om</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ========== SPILLERE ========== -->
+    <section id="spillere" class="fane aktiv">
+      <div class="verktoylinje">
+        <button id="leggTilSpiller">+ Legg til spiller</button>
+        <button id="importerSpillereCsv">Importer CSV</button>
+        <button id="eksporterSpillereCsv">Eksporter CSV</button>
+        <input type="file" id="csvFil" accept=".csv,text/csv" hidden>
+        <span class="info">Endringer lagres automatisk i nettleseren.</span>
+      </div>
+      <table id="spillereTabell">
+        <thead>
+          <tr>
+            <th>Nr</th>
+            <th>Navn</th>
+            <th>Gruppe</th>
+            <th>Ferdighet</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="tomTekst" id="spillereTomTekst">Ingen spillere registrert. Legg til en spiller eller importer en CSV-fil.</p>
+    </section>
+
+    <!-- ========== GRUPPER ========== -->
+    <section id="grupper" class="fane">
+      <div class="verktoylinje">
+        <button id="leggTilGruppe">+ Legg til gruppe</button>
+        <span class="info">Grupper representerer skoler eller andre tilhørigheter som spillerne kan ha til felles.</span>
+      </div>
+      <table id="grupperTabell">
+        <thead>
+          <tr>
+            <th>Navn</th>
+            <th>Antall spillere</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="tomTekst" id="grupperTomTekst">Ingen grupper definert.</p>
+    </section>
+
+    <!-- ========== TRENERE ========== -->
+    <section id="trenere" class="fane">
+      <div class="verktoylinje">
+        <button id="leggTilTrener">+ Legg til trener</button>
+        <span class="info">En trener kan være forelder til en eller flere spillere.</span>
+      </div>
+      <table id="trenereTabell">
+        <thead>
+          <tr>
+            <th>Navn</th>
+            <th>Barn (spiller-nr)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="tomTekst" id="trenereTomTekst">Ingen trenere registrert.</p>
+    </section>
+
+    <!-- ========== GENERER ========== -->
+    <section id="generer" class="fane">
+      <div class="oppsett">
+        <h2>Turneringsoppsett</h2>
+        <div class="rad">
+          <label>Antall lag:
+            <input type="number" id="antallLag" min="1" max="20" value="2">
+          </label>
+          <label>Min. spillere per lag:
+            <input type="number" id="minSpillere" min="3" max="30" value="5">
+          </label>
+          <label>Maks. spillere per lag:
+            <input type="number" id="maksSpillere" min="3" max="30" value="7">
+          </label>
+          <label>Kamplengde (min):
+            <input type="number" id="varighet" min="1" max="240" value="40">
+          </label>
+        </div>
+        <small class="formathjelp">Kamptider: starttidspunkt på formatet <code>HH:MM</code>, kommaseparert. F.eks. <code>10:00, 11:30, 13:00</code>.</small>
+        <div id="lagTider"></div>
+      </div>
+
+      <div class="oppsett">
+        <h2>Hvem deltar?</h2>
+        <div class="verktoylinje">
+          <button id="velgAlleSpillere">Velg alle spillere</button>
+          <button id="velgIngenSpillere">Velg ingen</button>
+          <span class="info">Valgte spillere: <span id="antallValgte">0</span></span>
+        </div>
+        <small class="formathjelp">Tilgjengelige tider: ett eller flere intervall på formatet <code>HH:MM - HH:MM</code>, kommaseparert. F.eks. <code>10:00 - 12:00</code> eller <code>09:00 - 11:00, 13:00 - 15:30</code>. Tom = alle tider.</small>
+        <table id="deltakereTabell">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Nr</th>
+              <th>Navn</th>
+              <th>Gruppe</th>
+              <th>Ferd.</th>
+              <th>Tilgjengelige tider</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="oppsett">
+        <h2>Trenere</h2>
+        <small class="formathjelp">En trener regnes som tilstede på et lag dersom barnet sitt er på laget og deltar.</small>
+        <table id="trenereDeltagereTabell">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Navn</th>
+              <th>Barn</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="oppsett">
+        <button id="genererKnapp" class="primaer">Generer lagforslag</button>
+        <button id="tomForslag" hidden>Tøm forslag</button>
+        <span class="info" id="genererStatus">Endringer i oppsettet lagres automatisk.</span>
+      </div>
+
+      <div id="resultater"></div>
+    </section>
+
+    <!-- ========== DATA ========== -->
+    <section id="data" class="fane">
+      <h2>Sikkerhetskopi</h2>
+      <p>All data ligger i nettleseren din. Eksporter en JSON-fil for å ta sikkerhetskopi eller flytte til en annen maskin.</p>
+      <div class="verktoylinje">
+        <button id="eksporterAlt">Eksporter alle data (JSON)</button>
+        <button id="importerAlt">Importer JSON</button>
+        <input type="file" id="jsonFil" accept=".json,application/json" hidden>
+        <button id="nullstillAlt" class="fare">Slett alle data</button>
+      </div>
+      <h3>CSV-format for spillere</h3>
+      <pre>nr,navn,gruppe,ferdighet
+1,Ola Nordmann,Skole A,2
+2,Kari Hansen,Skole B,1</pre>
+    </section>
+
+    <!-- ========== OM ========== -->
+    <section id="om" class="fane">
+      <article class="om-tekst">
+        <h2>Bakgrunn</h2>
+        <p>
+          Lagforslag-generator ble laget for å gjøre det enklere å sette sammen lag til turneringer
+          i en barneklubb. Det å fordele spillere på flere lag slik at fordelingen blir
+          rettferdig på ferdighet, at venner fra samme skole/gruppe havner sammen, og at det er
+          en forelder/trener tilknyttet hvert lag, er en oppgave som kan ta mye tid hver gang.
+          Denne appen prøver å automatisere førsteforslaget, slik at du kan justere derfra
+          fremfor å starte fra blanke ark.
+        </p>
+
+        <h2>Slik bruker du den</h2>
+        <ol>
+          <li>
+            <strong>Spillere:</strong> Legg inn alle spillerne én gang per sesong, med navn,
+            nummer, gruppe og ferdighetsnivå (1 til 3). Du kan importere fra CSV om du har
+            lista et annet sted.
+          </li>
+          <li>
+            <strong>Grupper:</strong> Definer skolene eller andre tilhørighetene som spillerne
+            kan ha til felles. Algoritmen prøver å gi hver spiller minst én lagkamerat fra
+            samme gruppe.
+          </li>
+          <li>
+            <strong>Trenere:</strong> Legg inn trenere som er foreldre til spillere. Hvert lag
+            bør ha minst én slik forelder/trener tilstede.
+          </li>
+          <li>
+            <strong>Generer lag:</strong> Sett opp den aktuelle turneringen (antall lag,
+            kamptider, lagstørrelse, kamplengde), velg hvem som deltar, og la generatoren
+            foreslå flere alternative lagsammensetninger.
+          </li>
+          <li>
+            <strong>Data:</strong> Eksporter en sikkerhetskopi (JSON) eller importer data fra
+            en annen maskin.
+          </li>
+        </ol>
+
+        <h2>Slik fungerer algoritmen</h2>
+        <p>
+          For hvert "Generer"-trykk kjører algoritmen mange forsøk (rundt 60). I hvert forsøk
+          plasserer den spillere ett etter ett på lag, der spillere med få mulige lag (på grunn
+          av tilgjengelighet) plasseres først. Hver plassering velger laget som best balanserer
+          de myke kravene.
+        </p>
+        <p>
+          Etter hvert forsøk skåres hele løsningen, og de fem beste, distinkte forslagene
+          presenteres. Lavere skår er bedre.
+        </p>
+
+        <h3>Harde krav</h3>
+        <p>Disse forsøkes alltid å oppfylles. Brudd flagges tydelig:</p>
+        <ul>
+          <li>Spilleren må være tilgjengelig på alle kampene laget skal spille.</li>
+          <li>Lagstørrelsen må være innenfor min/maks satt i turneringsoppsettet.</li>
+        </ul>
+
+        <h3>Myke krav (som påvirker skåren)</h3>
+        <ul>
+          <li>
+            <strong>Ferdighetsbalanse:</strong> Hvert lag skal ha en fordeling som ligner på
+            den i hele deltakergruppa. Eksempel: hvis 4 av 14 deltakere er F1, og det skal
+            spilles på 2 lag, er forventet fordeling ca. 2 F1 per lag.
+          </li>
+          <li>
+            <strong>Gruppelagkamerat:</strong> Hver spiller bør ha minst én annen fra samme
+            gruppe på laget sitt.
+          </li>
+          <li>
+            <strong>Forelder-trener på laget:</strong> Hvert lag bør ha minst én spiller hvis
+            forelder er trener og er deltakende.
+          </li>
+          <li>
+            <strong>Jevn lagstørrelse:</strong> Lagene bør være omtrent like store.
+          </li>
+        </ul>
+
+        <h2>Datalagring</h2>
+        <p>
+          Alt kjører lokalt i nettleseren din. Spillere, grupper, trenere, siste oppsett og
+          siste forslag lagres i nettleserens egen lagring (localStorage). Ingen pålogging,
+          ingen skytjeneste, ingenting sendes ut. Hvis du tømmer nettleserdata eller bytter
+          maskin, må du eksportere en JSON-sikkerhetskopi fra Data-fanen først.
+        </p>
+
+        <h2>Status</h2>
+        <p>
+          Dette er en tidlig versjon laget for testing og innspill. Tilbakemeldinger om
+          mangler, feil eller endringer er velkomne.
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
