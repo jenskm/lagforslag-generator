@@ -52,7 +52,16 @@ function migrer(d) {
       delete s.gruppe;
     }
   }
+  // Ny felt: kanLaane (opt-in for å bli foreslått som lånespiller).
+  for (const s of d.spillere) {
+    if (typeof s.kanLaane !== 'boolean') s.kanLaane = false;
+  }
   return d;
+}
+
+function parseJaNei(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return ['ja', 'j', 'true', '1', 'yes', 'y', 'sant'].includes(s);
 }
 
 const sortering = {
@@ -68,6 +77,9 @@ function sammenlignSpillere(a, b, felt) {
   } else {
     va = a[felt];
     vb = b[felt];
+  }
+  if (typeof va === 'boolean' || typeof vb === 'boolean') {
+    return (va ? 1 : 0) - (vb ? 1 : 0);
   }
   if (typeof va === 'number' || typeof vb === 'number') {
     return (Number.isFinite(va) ? va : 0) - (Number.isFinite(vb) ? vb : 0);
@@ -187,6 +199,7 @@ function tegnSpillere() {
           ${[1,2,3,4,5].map(n => `<option value="${n}" ${s.ferdighet == n ? 'selected' : ''}>${n}</option>`).join('')}
         </select>
       </td>
+      <td class="midt"><input type="checkbox" data-felt="kanLaane" ${s.kanLaane ? 'checked' : ''}></td>
       <td><button class="slett" title="Slett">×</button></td>
     `;
     tbody.appendChild(tr);
@@ -218,6 +231,8 @@ function tegnSpillere() {
         v = parseInt(v, 10);
       } else if (felt === 'gruppeId' && v === '') {
         v = null;
+      } else if (felt === 'kanLaane') {
+        v = e.target.checked;
       }
       sp[felt] = v;
       lagre();
@@ -256,7 +271,8 @@ function leggTilSpiller() {
     nr: nesteNr,
     navn: '',
     gruppeId: null,
-    ferdighet: 3
+    ferdighet: 3,
+    kanLaane: false
   });
   lagre();
   tegnSpillere();
@@ -266,10 +282,16 @@ function leggTilSpiller() {
 // CSV import / eksport
 // =============================================================
 function eksporterSpillereCsv() {
-  const rader = ['nr,navn,gruppe,ferdighet'];
-  const sortert = [...data.spillere].sort((a, b) => a.nr - b.nr);
-  for (const s of sortert) {
-    rader.push([s.nr, csvEsc(s.navn), csvEsc(gruppeNavnFor(s.gruppeId)), s.ferdighet].join(','));
+  const rader = ['nr,navn,gruppe,ferdighet,kan_laanes'];
+  const sortertListe = [...data.spillere].sort((a, b) => a.nr - b.nr);
+  for (const s of sortertListe) {
+    rader.push([
+      s.nr,
+      csvEsc(s.navn),
+      csvEsc(gruppeNavnFor(s.gruppeId)),
+      s.ferdighet,
+      s.kanLaane ? 'Ja' : 'Nei'
+    ].join(','));
   }
   lastNed('spillere.csv', '﻿' + rader.join('\r\n'), 'text/csv;charset=utf-8');
 }
@@ -357,12 +379,14 @@ function importerSpillereCsv(tekst) {
     settINNCsv.add(nr);
     const ferdighetGyldig = Number.isFinite(ferdighet) && ferdighet >= 1 && ferdighet <= 5
       ? ferdighet : 3;
+    const kanLaane = 'kan_laanes' in r ? parseJaNei(r.kan_laanes) : false;
     const gruppeId = finnEllerLagGruppe(r.gruppe);
     const eksisterende = data.spillere.find(s => s.nr === nr);
     if (eksisterende) {
       eksisterende.navn = r.navn;
       eksisterende.gruppeId = gruppeId;
       eksisterende.ferdighet = ferdighetGyldig;
+      if ('kan_laanes' in r) eksisterende.kanLaane = kanLaane;
       oppdatert++;
     } else {
       data.spillere.push({
@@ -370,7 +394,8 @@ function importerSpillereCsv(tekst) {
         nr,
         navn: r.navn,
         gruppeId,
-        ferdighet: ferdighetGyldig
+        ferdighet: ferdighetGyldig,
+        kanLaane
       });
       lagtTil++;
     }
@@ -1238,6 +1263,8 @@ function laaneKandidaterPerTid(team, lagIdx, ktx, alleLag) {
         .some(t => tiderKonflikter(t, tid, varighet));
       if (harKonflikt) continue;
       for (const nr of alleLag[i]) {
+        const sp = ktx.spillerVedNr.get(nr);
+        if (!sp || !sp.kanLaane) continue;
         if (ktx.spillerKanPaaTid(nr, tid)) kandidater.push(nr);
       }
     }

@@ -230,6 +230,10 @@ tbody td input.ugyldig {
 
 tbody td input[type="number"] { width: 60px; }
 
+tbody td.midt {
+  text-align: center;
+}
+
 .slett {
   color: var(--fare);
   border: none;

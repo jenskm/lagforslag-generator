@@ -36,6 +36,7 @@
             <th data-sort="navn" class="sortable">Navn</th>
             <th data-sort="gruppe" class="sortable">Gruppe</th>
             <th data-sort="ferdighet" class="sortable">Ferdighet</th>
+            <th data-sort="kanLaane" class="sortable" title="Kan stille som lånespiller på andre lag">Kan lånes</th>
             <th></th>
           </tr>
         </thead>
@@ -162,9 +163,13 @@
         <button id="nullstillAlt" class="fare">Slett alle data</button>
       </div>
       <h3>CSV-format for spillere</h3>
-      <pre>nr,navn,gruppe,ferdighet
-1,Ola Nordmann,Skole A,2
-2,Kari Hansen,Skole B,1</pre>
+      <pre>nr,navn,gruppe,ferdighet,kan_laanes
+1,Ola Nordmann,Skole A,3,Ja
+2,Kari Hansen,Skole B,2,Nei</pre>
+      <p class="info">
+        <code>kan_laanes</code> aksepterer "Ja"/"Nei", "true"/"false" eller "1"/"0".
+        Kolonnen er valgfri; spillere uten verdi defaulter til "Nei".
+      </p>
     </section>
 
     <!-- ========== OM ========== -->
@@ -185,7 +190,8 @@
           <li>
             <strong>Spillere:</strong> Legg inn alle spillerne én gang per sesong, med navn,
             nummer, gruppe og ferdighetsnivå (1 til 5, der 1 er svakest og 5 er sterkest).
-            Du kan importere fra CSV om du har lista et annet sted.
+            Marker også om hver spiller kan stille som lånespiller for andre lag i samme
+            turnering. Du kan importere fra CSV om du har lista et annet sted.
           </li>
           <li>
             <strong>Grupper:</strong> Definer skoler, klasser eller annen tilhørighet som spillerne
