@@ -1,5 +1,8 @@
 // =============================================================
 // Lagforslag-generator
+// Copyright (C) 2026 Jens Kilde Mjelva
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
 // All data lagres i localStorage. Algoritmen er randomisert
 // grådig tilordning + skåring; vi prøver mange ganger og
 // returnerer de beste, distinkte forslagene.
