@@ -55,6 +55,58 @@ function migrer(d) {
   return d;
 }
 
+const sortering = {
+  spillere: { felt: 'nr', dir: 'asc' },
+  deltakere: { felt: 'nr', dir: 'asc' }
+};
+
+function sammenlignSpillere(a, b, felt) {
+  let va, vb;
+  if (felt === 'gruppe') {
+    va = gruppeNavnFor(a.gruppeId) || '';
+    vb = gruppeNavnFor(b.gruppeId) || '';
+  } else {
+    va = a[felt];
+    vb = b[felt];
+  }
+  if (typeof va === 'number' || typeof vb === 'number') {
+    return (Number.isFinite(va) ? va : 0) - (Number.isFinite(vb) ? vb : 0);
+  }
+  return String(va || '').localeCompare(String(vb || ''), 'no');
+}
+
+function sortert(spillere, state) {
+  const arr = [...spillere];
+  arr.sort((a, b) => sammenlignSpillere(a, b, state.felt));
+  if (state.dir === 'desc') arr.reverse();
+  return arr;
+}
+
+function oppdaterSortIndikator(tabellId, state) {
+  document.querySelectorAll(`#${tabellId} th[data-sort]`).forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === state.felt) {
+      th.classList.add(`sort-${state.dir}`);
+    }
+  });
+}
+
+function settOppSortering(tabellId, stateKey, render) {
+  document.querySelectorAll(`#${tabellId} th[data-sort]`).forEach(th => {
+    th.addEventListener('click', () => {
+      const felt = th.dataset.sort;
+      const state = sortering[stateKey];
+      if (state.felt === felt) {
+        state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.felt = felt;
+        state.dir = 'asc';
+      }
+      render();
+    });
+  });
+}
+
 let lagringFeilet = false;
 function lagre() {
   try {
@@ -116,10 +168,10 @@ function gruppeNavnFor(id) {
 }
 
 function tegnSpillere() {
-  data.spillere.sort((a, b) => a.nr - b.nr);
   const tbody = document.querySelector('#spillereTabell tbody');
   tbody.innerHTML = '';
-  for (const s of data.spillere) {
+  oppdaterSortIndikator('spillereTabell', sortering.spillere);
+  for (const s of sortert(data.spillere, sortering.spillere)) {
     const tr = document.createElement('tr');
     tr.dataset.id = s.id;
     tr.innerHTML = `
@@ -564,7 +616,8 @@ function byggLagTider() {
 function byggDeltakerListe() {
   const tbody = document.querySelector('#deltakereTabell tbody');
   tbody.innerHTML = '';
-  const sorterte = [...data.spillere].sort((a, b) => a.nr - b.nr);
+  oppdaterSortIndikator('deltakereTabell', sortering.deltakere);
+  const sorterte = sortert(data.spillere, sortering.deltakere);
   const lagretSpillere = data.sisteOppsett?.spillere || {};
 
   for (const s of sorterte) {
@@ -1252,6 +1305,8 @@ function nullstillAlt() {
 // =============================================================
 function init() {
   settOppFaner();
+  settOppSortering('spillereTabell', 'spillere', tegnSpillere);
+  settOppSortering('deltakereTabell', 'deltakere', byggDeltakerListe);
   tegnSpillere();
   tegnGrupper();
   tegnTrenere();
