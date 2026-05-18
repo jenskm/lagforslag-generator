@@ -132,9 +132,7 @@ function tegnSpillere() {
       </td>
       <td>
         <select data-felt="ferdighet">
-          <option value="1" ${s.ferdighet == 1 ? 'selected' : ''}>1</option>
-          <option value="2" ${s.ferdighet == 2 ? 'selected' : ''}>2</option>
-          <option value="3" ${s.ferdighet == 3 ? 'selected' : ''}>3</option>
+          ${[1,2,3,4,5].map(n => `<option value="${n}" ${s.ferdighet == n ? 'selected' : ''}>${n}</option>`).join('')}
         </select>
       </td>
       <td><button class="slett" title="Slett">×</button></td>
@@ -206,7 +204,7 @@ function leggTilSpiller() {
     nr: nesteNr,
     navn: '',
     gruppeId: null,
-    ferdighet: 2
+    ferdighet: 3
   });
   lagre();
   tegnSpillere();
@@ -305,12 +303,14 @@ function importerSpillereCsv(tekst) {
       continue;
     }
     settINNCsv.add(nr);
+    const ferdighetGyldig = Number.isFinite(ferdighet) && ferdighet >= 1 && ferdighet <= 5
+      ? ferdighet : 3;
     const gruppeId = finnEllerLagGruppe(r.gruppe);
     const eksisterende = data.spillere.find(s => s.nr === nr);
     if (eksisterende) {
       eksisterende.navn = r.navn;
       eksisterende.gruppeId = gruppeId;
-      eksisterende.ferdighet = ferdighet || 2;
+      eksisterende.ferdighet = ferdighetGyldig;
       oppdatert++;
     } else {
       data.spillere.push({
@@ -318,7 +318,7 @@ function importerSpillereCsv(tekst) {
         nr,
         navn: r.navn,
         gruppeId,
-        ferdighet: ferdighet || 2
+        ferdighet: ferdighetGyldig
       });
       lagtTil++;
     }
@@ -783,16 +783,11 @@ function bygKontekst(input) {
     return tilgjengeligeTrenereForBarn(nr).length > 0;
   }
 
-  // Beregn ideell ferdighetsfordeling per lag basert på poolen av aktive spillere.
-  // Eksempel: 4 F1 + 6 F2 + 4 F3 fordelt på 2 lag → 2/3/2 per lag.
-  const poolFerdighet = [0, 0, 0, 0];
-  for (const nr of aktive) {
-    const f = spillerVedNr.get(nr).ferdighet;
-    if (f >= 1 && f <= 3) poolFerdighet[f]++;
-  }
-  const antLag = Math.max(1, input.antallLag);
-  const idealPerLag = [0, 0, 0, 0];
-  for (let k = 1; k <= 3; k++) idealPerLag[k] = poolFerdighet[k] / antLag;
+  // Gjennomsnittlig ferdighet i hele deltakerpoolen. Algoritmen prøver å
+  // bringe hvert lags ferdighetssnitt så nært dette tallet som mulig.
+  let totalFerdighet = 0;
+  for (const nr of aktive) totalFerdighet += spillerVedNr.get(nr).ferdighet;
+  const snittFerdighet = aktive.length > 0 ? totalFerdighet / aktive.length : 0;
 
   return {
     input,
@@ -804,8 +799,7 @@ function bygKontekst(input) {
     spillerKanLagIdx,
     spillerKanPaaTid,
     spillerHarTilgjengeligTrener,
-    poolFerdighet,
-    idealPerLag
+    snittFerdighet
   };
 }
 
@@ -870,14 +864,15 @@ function deltaSkaar(lagListe, nyNr, lagIdx, ktx) {
   const ny = ktx.spillerVedNr.get(nyNr);
   let s = 0;
 
-  // Ferdighetsbalanse: foretrekk laget der spillerens ferdighet er
-  // lengst unna det ideelle antallet (basert på pool-fordelingen).
-  const tellSkill = [0, 0, 0, 0];
-  for (const n of lagListe) tellSkill[ktx.spillerVedNr.get(n).ferdighet]++;
-  const idealK = ktx.idealPerLag[ny.ferdighet];
-  const foer = Math.abs(tellSkill[ny.ferdighet] - idealK);
-  const etter = Math.abs(tellSkill[ny.ferdighet] + 1 - idealK);
-  s += (etter - foer) * 2.0;
+  // Ferdighetsbalanse: dytt lagets ferdighetssnitt mot pool-snittet.
+  // Bruker kvadratisk avvik så store avvik straffes mye mer enn små.
+  let lagSum = 0;
+  for (const n of lagListe) lagSum += ktx.spillerVedNr.get(n).ferdighet;
+  const snitt = ktx.snittFerdighet;
+  const c = lagListe.length;
+  const foerAvvik = c > 0 ? Math.pow(lagSum / c - snitt, 2) : 0;
+  const etterAvvik = Math.pow((lagSum + ny.ferdighet) / (c + 1) - snitt, 2);
+  s += (etterAvvik - foerAvvik) * 6.0;
 
   // Group: belønning for samme gruppe finnes (kun hvis spilleren faktisk har en gruppe)
   if (ny.gruppeId) {
@@ -906,11 +901,12 @@ function skaarLoesning(lag, ktx) {
     if (team.length < min) s += 1000 * (min - team.length);
     if (team.length > maks) s += 1000 * (team.length - maks);
 
-    // Ferdighetsbalanse: avvik fra ideell fordeling avledet fra spillerpoolen
-    const tellSkill = [0, 0, 0, 0];
-    for (const n of team) tellSkill[ktx.spillerVedNr.get(n).ferdighet]++;
-    for (let k = 1; k <= 3; k++) {
-      s += Math.abs(tellSkill[k] - ktx.idealPerLag[k]) * 2;
+    // Ferdighetsbalanse: kvadratisk avvik mellom lagets snitt og pool-snittet.
+    if (team.length > 0) {
+      let lagSum = 0;
+      for (const n of team) lagSum += ktx.spillerVedNr.get(n).ferdighet;
+      const lagSnitt = lagSum / team.length;
+      s += Math.pow(lagSnitt - ktx.snittFerdighet, 2) * 15;
     }
 
     // Group overlap (kun spillere som har en gruppe regnes)
@@ -959,15 +955,14 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
     if (team.length > maks)
       brudd.push(`${navn}: ${team.length} spillere (over maksimum ${maks}).`);
 
-    // Skill
-    const tellSkill = [0, 0, 0, 0];
-    for (const n of team) tellSkill[ktx.spillerVedNr.get(n).ferdighet]++;
-    let avvik = 0;
-    for (let k = 1; k <= 3; k++) avvik += Math.abs(tellSkill[k] - ktx.idealPerLag[k]);
-    if (avvik > 1.5) {
-      const ideal = ktx.idealPerLag;
-      const idealStr = `${ideal[1].toFixed(1)}/${ideal[2].toFixed(1)}/${ideal[3].toFixed(1)}`;
-      brudd.push(`${navn}: skjev ferdighetsfordeling F1/F2/F3 = ${tellSkill[1]}/${tellSkill[2]}/${tellSkill[3]} (forventet ~${idealStr}).`);
+    // Ferdighetssnitt: avvik fra pool-snittet
+    if (team.length > 0) {
+      let lagSum = 0;
+      for (const n of team) lagSum += ktx.spillerVedNr.get(n).ferdighet;
+      const lagSnitt = lagSum / team.length;
+      if (Math.abs(lagSnitt - ktx.snittFerdighet) > 0.5) {
+        brudd.push(`${navn}: ferdighetssnitt ${lagSnitt.toFixed(2)} avviker fra pool-snittet ${ktx.snittFerdighet.toFixed(2)}.`);
+      }
     }
 
     // Group
@@ -1142,10 +1137,9 @@ function eksporterForslagCsv(forslag, idx, ktx) {
 function tegnLag(team, i, ktx, alleLag) {
   const lagT = ktx.input.lagTider[i];
   const trenere = trenerForLag(team, ktx);
-  const tellSkill = [0, 0, 0, 0];
-  for (const nr of team) {
-    tellSkill[ktx.spillerVedNr.get(nr).ferdighet]++;
-  }
+  let lagSum = 0;
+  for (const nr of team) lagSum += ktx.spillerVedNr.get(nr).ferdighet;
+  const snitt = team.length > 0 ? (lagSum / team.length).toFixed(2) : '–';
   const sortert = [...team].sort((a, b) => a - b);
 
   // Mulige lånespillere fra andre lag (informativt)
@@ -1153,7 +1147,7 @@ function tegnLag(team, i, ktx, alleLag) {
 
   return `
     <div class="lagBoks">
-      <h4>Lag ${i + 1} <span class="meta">${team.length} sp · F1:${tellSkill[1]} F2:${tellSkill[2]} F3:${tellSkill[3]}</span></h4>
+      <h4>Lag ${i + 1} <span class="meta">${team.length} sp · snitt ${snitt}</span></h4>
       <div class="tider">${lagT.length ? 'Tider: ' + escapeHtml(lagT.join(', ')) : '(ingen kamptider satt)'}</div>
       <ul>
         ${sortert.map(nr => {
