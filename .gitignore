@@ -10,3 +10,6 @@
 
 # Local data dumps
 *.local.json
+
+# Lokal arbeidsfil (opprinnelig bestilling)
+bestilling.md

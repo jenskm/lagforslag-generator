@@ -55,8 +55,20 @@ function migrer(d) {
   return d;
 }
 
+let lagringFeilet = false;
 function lagre() {
-  localStorage.setItem(LAGRINGSNOEKKEL, JSON.stringify(data));
+  try {
+    localStorage.setItem(LAGRINGSNOEKKEL, JSON.stringify(data));
+  } catch (e) {
+    if (!lagringFeilet) {
+      lagringFeilet = true;
+      alert(
+        'Klarte ikke lagre data i nettleseren: ' + e.message +
+        '\nEndringer i denne økten beholdes, men forsvinner ved refresh.' +
+        '\nFor sikkerhetskopi, bruk Eksporter alle data (JSON) i Data-fanen.'
+      );
+    }
+  }
 }
 
 function nyId() {
@@ -139,8 +151,24 @@ function tegnSpillere() {
       if (!sp) return;
       const felt = e.target.dataset.felt;
       let v = e.target.value;
-      if (felt === 'nr' || felt === 'ferdighet') v = parseInt(v, 10);
-      if (felt === 'gruppeId' && v === '') v = null;
+      if (felt === 'nr') {
+        const nyttNr = parseInt(v, 10);
+        if (!Number.isFinite(nyttNr) || nyttNr < 1) {
+          alert('Spiller-nr må være et positivt heltall.');
+          e.target.value = sp.nr;
+          return;
+        }
+        if (nyttNr !== sp.nr && data.spillere.some(s => s.id !== sp.id && s.nr === nyttNr)) {
+          alert(`Spiller-nr ${nyttNr} er allerede i bruk.`);
+          e.target.value = sp.nr;
+          return;
+        }
+        v = nyttNr;
+      } else if (felt === 'ferdighet') {
+        v = parseInt(v, 10);
+      } else if (felt === 'gruppeId' && v === '') {
+        v = null;
+      }
       sp[felt] = v;
       lagre();
     });
@@ -150,6 +178,8 @@ function tegnSpillere() {
       const tr = e.target.closest('tr');
       const id = tr.dataset.id;
       if (!confirm('Slett denne spilleren?')) return;
+      const slettet = data.spillere.find(s => s.id === id);
+      const slettetNr = slettet ? slettet.nr : null;
       data.spillere = data.spillere.filter(s => s.id !== id);
       // Fjern fra trener-koblinger
       for (const t of data.trenere) {
@@ -157,6 +187,10 @@ function tegnSpillere() {
           const fortsattFinnes = data.spillere.some(s => s.nr === n);
           return fortsattFinnes;
         });
+      }
+      // Rydd evt. referanse i sisteOppsett.
+      if (slettetNr !== null && data.sisteOppsett?.spillere) {
+        delete data.sisteOppsett.spillere[slettetNr];
       }
       lagre();
       tegnSpillere();
@@ -187,7 +221,7 @@ function eksporterSpillereCsv() {
   for (const s of sortert) {
     rader.push([s.nr, csvEsc(s.navn), csvEsc(gruppeNavnFor(s.gruppeId)), s.ferdighet].join(','));
   }
-  lastNed('spillere.csv', rader.join('\n'), 'text/csv');
+  lastNed('spillere.csv', '﻿' + rader.join('\r\n'), 'text/csv;charset=utf-8');
 }
 
 function finnEllerLagGruppe(navn) {
@@ -207,6 +241,8 @@ function csvEsc(v) {
 }
 
 function parseCsv(tekst) {
+  // Fjern UTF-8 BOM hvis filen starter med det.
+  if (tekst.charCodeAt(0) === 0xFEFF) tekst = tekst.slice(1);
   const linjer = tekst.replace(/\r\n/g, '\n').split('\n').filter(l => l.length);
   if (linjer.length === 0) return [];
   const header = parseCsvLinje(linjer[0]).map(h => h.trim().toLowerCase());
@@ -253,11 +289,22 @@ function importerSpillereCsv(tekst) {
     alert('CSV-en må ha kolonnene: ' + obligatoriske.join(', '));
     return;
   }
-  let lagtTil = 0, oppdatert = 0;
+  let lagtTil = 0, oppdatert = 0, hoppetOver = 0;
+  const duplikatNr = new Set();
+  const settINNCsv = new Set();
   for (const r of rader) {
     const nr = parseInt(r.nr, 10);
     const ferdighet = parseInt(r.ferdighet, 10);
-    if (!nr || !r.navn) continue;
+    if (!Number.isFinite(nr) || nr < 1 || !r.navn) {
+      hoppetOver++;
+      continue;
+    }
+    if (settINNCsv.has(nr)) {
+      duplikatNr.add(nr);
+      hoppetOver++;
+      continue;
+    }
+    settINNCsv.add(nr);
     const gruppeId = finnEllerLagGruppe(r.gruppe);
     const eksisterende = data.spillere.find(s => s.nr === nr);
     if (eksisterende) {
@@ -279,7 +326,16 @@ function importerSpillereCsv(tekst) {
   lagre();
   tegnSpillere();
   tegnGrupper();
-  alert(`Importert: ${lagtTil} ny${lagtTil === 1 ? '' : 'e'}, ${oppdatert} oppdatert.`);
+  const deler = [
+    `${lagtTil} ny${lagtTil === 1 ? '' : 'e'}`,
+    `${oppdatert} oppdatert`
+  ];
+  if (hoppetOver > 0) deler.push(`${hoppetOver} hoppet over`);
+  let melding = 'Importert: ' + deler.join(', ') + '.';
+  if (duplikatNr.size > 0) {
+    melding += `\nDuplikat-nr i CSV (kun første beholdt): ${[...duplikatNr].join(', ')}.`;
+  }
+  alert(melding);
 }
 
 function lastNed(filnavn, innhold, mime) {
@@ -463,6 +519,14 @@ function validerAlleTidsfelt() {
   document.querySelectorAll('#deltakereTabell [data-felt="tider"]').forEach(validerIntervaller);
 }
 
+function dataSignatur() {
+  return JSON.stringify({
+    s: data.spillere.map(s => `${s.nr}|${s.navn}|${s.gruppeId}|${s.ferdighet}`),
+    g: data.grupper.map(g => `${g.id}|${g.navn}`),
+    t: data.trenere.map(t => `${t.id}|${t.navn}|${(t.barnNr || []).join(',')}`)
+  });
+}
+
 function gjenopprettForslag() {
   const out = document.getElementById('resultater');
   const tom = document.getElementById('tomForslag');
@@ -472,8 +536,11 @@ function gjenopprettForslag() {
     return;
   }
   const ktx = bygKontekst(data.sisteForslag.inputSnapshot);
+  const erUtdatert = data.sisteForslag.dataSig
+    && data.sisteForslag.dataSig !== dataSignatur();
   tegnResultater({
-    forslag: data.sisteForslag.forslag.map(f => ({ ...f, ktx }))
+    forslag: data.sisteForslag.forslag.map(f => ({ ...f, ktx })),
+    utdatert: erUtdatert
   });
   tom.hidden = false;
 }
@@ -554,8 +621,10 @@ function byggTrenerListe() {
 
 function lesGenererInput() {
   const antallLag = parseInt(document.getElementById('antallLag').value, 10) || 1;
-  const minSpillere = parseInt(document.getElementById('minSpillere').value, 10) || 3;
-  const maksSpillere = parseInt(document.getElementById('maksSpillere').value, 10) || minSpillere;
+  let minSpillere = parseInt(document.getElementById('minSpillere').value, 10);
+  let maksSpillere = parseInt(document.getElementById('maksSpillere').value, 10);
+  if (!Number.isFinite(minSpillere) || minSpillere < 3) minSpillere = 3;
+  if (!Number.isFinite(maksSpillere) || maksSpillere < 3) maksSpillere = Math.max(3, minSpillere);
   const varighet = parseInt(document.getElementById('varighet').value, 10) || 40;
 
   const lagTider = [];
@@ -693,12 +762,11 @@ function bygKontekst(input) {
     if (intervaller === null) return true; // alle tider OK
     const lagT = input.lagTider[lagIdx];
     if (!lagT.length) return true;
-    // Spilleren må kunne delta på ALLE lagets kamper
-    return lagT.every(tid => {
-      const start = parseHHMM(tid);
-      if (start === null) return true; // ugyldig kamptid – ignorer
-      return gameWithinIntervaller(start, start + varighet, intervaller);
-    });
+    // Spilleren må kunne delta på ALLE GYLDIGE kamper for laget.
+    // Ugyldige kamptider hoppes over (de rapporteres som brudd separat).
+    const gyldige = lagT.map(parseHHMM).filter(t => t !== null);
+    if (gyldige.length === 0) return true;
+    return gyldige.every(start => gameWithinIntervaller(start, start + varighet, intervaller));
   }
 
   function spillerKanPaaTid(nr, tid) {
@@ -709,7 +777,7 @@ function bygKontekst(input) {
     return gameWithinIntervaller(start, start + varighet, intervaller);
   }
 
-  function spillerHarTrenerForLag(nr, lagIdx) {
+  function spillerHarTilgjengeligTrener(nr) {
     // Trener er "tilstede" så lenge barnet er på laget (tidsmessig følger
     // foreldren barnet) og treneren er markert som deltakende.
     return tilgjengeligeTrenereForBarn(nr).length > 0;
@@ -735,7 +803,7 @@ function bygKontekst(input) {
     tilgjengeligeTrenereForBarn,
     spillerKanLagIdx,
     spillerKanPaaTid,
-    spillerHarTrenerForLag,
+    spillerHarTilgjengeligTrener,
     poolFerdighet,
     idealPerLag
   };
@@ -751,13 +819,12 @@ function graadigTilordne(ktx, seed) {
   const aktive = shuffle(ktx.aktive, r);
   aktive.sort((a, b) => {
     let kanA = 0, kanB = 0;
-    let trenerA = false, trenerB = false;
     for (let i = 0; i < ktx.input.antallLag; i++) {
       if (ktx.spillerKanLagIdx(a, i)) kanA++;
       if (ktx.spillerKanLagIdx(b, i)) kanB++;
-      if (ktx.spillerHarTrenerForLag(a, i)) trenerA = true;
-      if (ktx.spillerHarTrenerForLag(b, i)) trenerB = true;
     }
+    const trenerA = ktx.spillerHarTilgjengeligTrener(a);
+    const trenerB = ktx.spillerHarTilgjengeligTrener(b);
     if (kanA !== kanB) return kanA - kanB;
     if (trenerA !== trenerB) return trenerA ? -1 : 1;
     return 0;
@@ -819,8 +886,8 @@ function deltaSkaar(lagListe, nyNr, lagIdx, ktx) {
   }
 
   // Trener-forelder spredning
-  const harTrener = lagListe.some(n => ktx.spillerHarTrenerForLag(n, lagIdx));
-  if (!harTrener && ktx.spillerHarTrenerForLag(nyNr, lagIdx)) {
+  const harTrener = lagListe.some(n => ktx.spillerHarTilgjengeligTrener(n));
+  if (!harTrener && ktx.spillerHarTilgjengeligTrener(nyNr)) {
     s -= 3.0; // sterk preferanse: gi laget en trener-forelder
   }
 
@@ -857,7 +924,7 @@ function skaarLoesning(lag, ktx) {
     s += utenGruppe * 8;
 
     // Trener
-    const harTrener = team.some(n => ktx.spillerHarTrenerForLag(n, i));
+    const harTrener = team.some(n => ktx.spillerHarTilgjengeligTrener(n));
     if (!harTrener) s += 25;
   }
 
@@ -880,6 +947,12 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
   for (let i = 0; i < lag.length; i++) {
     const team = lag[i];
     const navn = `Lag ${i + 1}`;
+
+    // Ugyldige kamptider rapporteres så brukeren ser at de er hoppet over.
+    const ugyldigeTider = (ktx.input.lagTider[i] || []).filter(t => parseHHMM(t) === null);
+    if (ugyldigeTider.length > 0) {
+      brudd.push(`${navn}: ugyldig(e) kamptid(er) ble ignorert: ${ugyldigeTider.join(', ')}.`);
+    }
 
     if (team.length < min)
       brudd.push(`${navn}: bare ${team.length} spillere (minimum ${min}).`);
@@ -907,18 +980,21 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
       brudd.push(`${navn}: spiller(e) uten lagkamerat fra samme gruppe — ${utenGruppe.map(n => '#' + n).join(', ')}.`);
     }
 
-    // Trener
-    const trenerNavn = trenerForLag(team, i, ktx);
-    if (trenerNavn.length === 0)
-      brudd.push(`${navn}: ingen spiller med tilgjengelig forelder-trener.`);
+    // Trener — bare relevant hvis det finnes deltakende trenere i det hele tatt
+    const finnesDeltakendeTrenere = [...ktx.trenerTilg.values()].some(t => t.aktiv);
+    if (finnesDeltakendeTrenere) {
+      const trenerNavn = trenerForLag(team, ktx);
+      if (trenerNavn.length === 0)
+        brudd.push(`${navn}: ingen spiller med tilgjengelig forelder-trener.`);
+    }
   }
   return brudd;
 }
 
-function trenerForLag(team, lagIdx, ktx) {
+function trenerForLag(team, ktx) {
   const ut = new Set();
   for (const nr of team) {
-    if (ktx.spillerHarTrenerForLag(nr, lagIdx)) {
+    if (ktx.spillerHarTilgjengeligTrener(nr)) {
       const trenere = ktx.tilgjengeligeTrenereForBarn(nr);
       for (const { trener } of trenere) ut.add(trener.navn || '(uten navn)');
     }
@@ -972,6 +1048,13 @@ function tegnResultater(res) {
   if (!res.forslag.length) {
     out.innerHTML = `<p class="info">Ingen forslag funnet.</p>`;
     return;
+  }
+
+  if (res.utdatert) {
+    const banner = document.createElement('div');
+    banner.className = 'brudd';
+    banner.innerHTML = `<strong>Utdaterte forslag:</strong> spillere, grupper eller trenere er endret etter at disse forslagene ble generert. Generer på nytt for å reflektere endringene.`;
+    out.appendChild(banner);
   }
 
   res.forslag.forEach((f, idx) => {
@@ -1053,12 +1136,12 @@ function eksporterForslagCsv(forslag, idx, ktx) {
   }
 
   // UTF-8 BOM for at Excel skal vise norske tegn riktig.
-  lastNed(`forslag-${idx + 1}.csv`, '﻿' + rader.join('\n'), 'text/csv;charset=utf-8');
+  lastNed(`forslag-${idx + 1}.csv`, '﻿' + rader.join('\r\n'), 'text/csv;charset=utf-8');
 }
 
 function tegnLag(team, i, ktx, alleLag) {
   const lagT = ktx.input.lagTider[i];
-  const trenere = trenerForLag(team, i, ktx);
+  const trenere = trenerForLag(team, ktx);
   const tellSkill = [0, 0, 0, 0];
   for (const nr of team) {
     tellSkill[ktx.spillerVedNr.get(nr).ferdighet]++;
@@ -1085,7 +1168,9 @@ function tegnLag(team, i, ktx, alleLag) {
       </ul>
       ${trenere.length
         ? `<div class="trener">Trener tilstede: ${escapeHtml(trenere.join(', '))}</div>`
-        : `<div class="trener ingenTrener">Ingen tilgjengelig forelder-trener på dette laget</div>`}
+        : ([...ktx.trenerTilg.values()].some(t => t.aktiv)
+            ? `<div class="trener ingenTrener">Ingen tilgjengelig forelder-trener på dette laget</div>`
+            : '')}
       ${laanInfo}
     </div>
   `;
@@ -1134,8 +1219,17 @@ function eksporterAlt() {
 function importerAlt(tekst) {
   try {
     const ny = JSON.parse(tekst);
-    if (!Array.isArray(ny.spillere) || !Array.isArray(ny.trenere)) {
-      throw new Error('Mangler felt "spillere" eller "trenere".');
+    if (!ny || typeof ny !== 'object') {
+      throw new Error('Filen er ikke et JSON-objekt.');
+    }
+    const krav = ['spillere', 'trenere'];
+    for (const f of krav) {
+      if (!Array.isArray(ny[f])) throw new Error(`Feltet "${f}" mangler eller er ikke en liste.`);
+    }
+    // grupper er valgfritt (migrer() lager det hvis det mangler), men hvis det finnes
+    // må det være en liste.
+    if ('grupper' in ny && !Array.isArray(ny.grupper)) {
+      throw new Error('Feltet "grupper" må være en liste hvis det finnes.');
     }
     if (!confirm('Dette overskriver eksisterende data. Fortsette?')) return;
     data = migrer(Object.assign(startData(), ny));
@@ -1218,6 +1312,16 @@ function init() {
       );
       if (!fortsett) return;
     }
+    const minRaw = parseInt(document.getElementById('minSpillere').value, 10);
+    const maksRaw = parseInt(document.getElementById('maksSpillere').value, 10);
+    if (!Number.isFinite(minRaw) || minRaw < 3 || !Number.isFinite(maksRaw) || maksRaw < 3) {
+      alert('Min. og maks. spillere per lag må begge være minst 3.');
+      return;
+    }
+    if (maksRaw < minRaw) {
+      alert(`Maks. spillere per lag (${maksRaw}) kan ikke være mindre enn min. (${minRaw}).`);
+      return;
+    }
     const input = lesGenererInput();
     data.sisteOppsett = input;
     const status = document.getElementById('genererStatus');
@@ -1234,6 +1338,7 @@ function init() {
       }
       data.sisteForslag = {
         inputSnapshot: input,
+        dataSig: dataSignatur(),
         forslag: res.forslag.map(f => ({
           lag: f.lag,
           skaar: f.skaar,
