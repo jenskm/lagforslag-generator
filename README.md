@@ -46,12 +46,14 @@ løsning skåres på følgende krav:
 
 - Spilleren må være tilgjengelig på alle lagets kamper
 - Lagstørrelsen må være innenfor min og maks satt i oppsettet
+- Hvert lag må ha minst en spiller med tilgjengelig forelder-trener
+  (når det finnes deltakende trenere)
 
 **Myke krav (påvirker skåren, brudd flagges):**
 
 - Lagenes ferdighetssnitt skal være nær snittet i deltakerpoolen
 - Hver spiller skal ha minst en lagkamerat fra samme gruppe
-- Hvert lag skal ha en spiller med tilgjengelig forelder-trener
+- Lagene bør være omtrent like store
 
 De fem beste, distinkte løsningene presenteres. For hvert forslag
 listes også potensielle lånespillere fra andre lag (kun spillere som er

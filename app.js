@@ -826,54 +826,89 @@ function graadigTilordne(ktx, seed) {
   const r = rng(seed);
   const lag = Array.from({ length: ktx.input.antallLag }, () => []);
   const uplassert = [];
-
-  // Sortér: mest begrenset først (færrest lag de kan spille for),
-  // deretter spillere med tilgjengelig trenerforelder (vil spres ut)
-  const aktive = shuffle(ktx.aktive, r);
-  aktive.sort((a, b) => {
-    let kanA = 0, kanB = 0;
-    for (let i = 0; i < ktx.input.antallLag; i++) {
-      if (ktx.spillerKanLagIdx(a, i)) kanA++;
-      if (ktx.spillerKanLagIdx(b, i)) kanB++;
-    }
-    const trenerA = ktx.spillerHarTilgjengeligTrener(a);
-    const trenerB = ktx.spillerHarTilgjengeligTrener(b);
-    if (kanA !== kanB) return kanA - kanB;
-    if (trenerA !== trenerB) return trenerA ? -1 : 1;
-    return 0;
-  });
-
   const maks = ktx.input.maksSpillere;
-  for (const nr of aktive) {
+
+  function sorterEtterBegrensning(nrs) {
+    const arr = shuffle(nrs, r);
+    arr.sort((a, b) => {
+      let kanA = 0, kanB = 0;
+      for (let i = 0; i < ktx.input.antallLag; i++) {
+        if (ktx.spillerKanLagIdx(a, i)) kanA++;
+        if (ktx.spillerKanLagIdx(b, i)) kanB++;
+      }
+      return kanA - kanB;
+    });
+    return arr;
+  }
+
+  // Plasser én spiller på beste tilgjengelige lag (innenfor evt. lag-filter).
+  // Returnerer lag-indeksen, eller -1 hvis ingen kandidat finnes.
+  function plasser(nr, tillatteLag) {
     const kandidater = [];
     for (let i = 0; i < ktx.input.antallLag; i++) {
+      if (tillatteLag && !tillatteLag.has(i)) continue;
       if (lag[i].length >= maks) continue;
       if (!ktx.spillerKanLagIdx(nr, i)) continue;
       kandidater.push(i);
     }
-    let plassering;
-    if (kandidater.length === 0) {
-      // Ingen plass som passer både tid og størrelse, prøv tid uten størrelse
-      const t = [];
-      for (let i = 0; i < ktx.input.antallLag; i++) {
-        if (ktx.spillerKanLagIdx(nr, i)) t.push(i);
-      }
-      if (t.length === 0) {
-        uplassert.push(nr); // ingen lag matcher spillerens tilgjengelighet
+    if (kandidater.length === 0) return -1;
+    const skaar = kandidater.map(i => ({
+      i,
+      s: deltaSkaar(lag[i], nr, i, ktx) + r() * 0.4
+    }));
+    skaar.sort((a, b) => a.s - b.s);
+    const valg = skaar[0].i;
+    lag[valg].push(nr);
+    return valg;
+  }
+
+  // Fallback når plasser() ikke finner kandidater: ignorér maks-grensen
+  // og plasser på minste lag spilleren kan delta på. Returnerer lag-indeks
+  // eller -1 hvis spilleren ikke kan plasseres i det hele tatt.
+  function plasserMedFallback(nr) {
+    const valg = plasser(nr, null);
+    if (valg >= 0) return valg;
+    const muligeLag = [];
+    for (let i = 0; i < ktx.input.antallLag; i++) {
+      if (ktx.spillerKanLagIdx(nr, i)) muligeLag.push(i);
+    }
+    if (muligeLag.length === 0) {
+      uplassert.push(nr);
+      return -1;
+    }
+    muligeLag.sort((a, b) => lag[a].length - lag[b].length);
+    lag[muligeLag[0]].push(nr);
+    return muligeLag[0];
+  }
+
+  const finnesDeltakendeTrenere = [...ktx.trenerTilg.values()].some(t => t.aktiv);
+  const trenerBarn = ktx.aktive.filter(nr => ktx.spillerHarTilgjengeligTrener(nr));
+  const ikkeBarn = ktx.aktive.filter(nr => !ktx.spillerHarTilgjengeligTrener(nr));
+
+  // Fase 1: hardt krav om en trenerbarn-spiller per lag.
+  // Plasser én trenerbarn-spiller på hvert lag som mangler det.
+  if (finnesDeltakendeTrenere) {
+    const lagUtenTrenerbarn = new Set();
+    for (let i = 0; i < ktx.input.antallLag; i++) lagUtenTrenerbarn.add(i);
+
+    const igjen = [];
+    for (const nr of sorterEtterBegrensning(trenerBarn)) {
+      if (lagUtenTrenerbarn.size === 0) {
+        igjen.push(nr);
         continue;
       }
-      t.sort((a, b) => lag[a].length - lag[b].length);
-      plassering = t[0];
-    } else {
-      const skaar = kandidater.map(i => ({
-        i,
-        s: deltaSkaar(lag[i], nr, i, ktx) + r() * 0.4
-      }));
-      skaar.sort((a, b) => a.s - b.s);
-      plassering = skaar[0].i;
+      const valg = plasser(nr, lagUtenTrenerbarn);
+      if (valg >= 0) lagUtenTrenerbarn.delete(valg);
+      else igjen.push(nr);
     }
-    lag[plassering].push(nr);
+    // Restende trenerbarn plasseres som vanlige spillere.
+    for (const nr of igjen) plasserMedFallback(nr);
+  } else {
+    for (const nr of sorterEtterBegrensning(trenerBarn)) plasserMedFallback(nr);
   }
+
+  // Fase 2: plasser øvrige spillere
+  for (const nr of sorterEtterBegrensning(ikkeBarn)) plasserMedFallback(nr);
 
   return { lag, uplassert };
 }
@@ -943,9 +978,12 @@ function skaarLoesning(lag, ktx) {
     }
     s += utenGruppe * 8;
 
-    // Trener
-    const harTrener = team.some(n => ktx.spillerHarTilgjengeligTrener(n));
-    if (!harTrener) s += 25;
+    // Trener (hardt krav når det finnes deltakende trenere)
+    const finnesAktive = [...ktx.trenerTilg.values()].some(t => t.aktiv);
+    if (finnesAktive) {
+      const harTrener = team.some(n => ktx.spillerHarTilgjengeligTrener(n));
+      if (!harTrener) s += 1000;
+    }
   }
 
   // Lagstørrelser: kvadratisk avvik fra ideell størrelse straffer
@@ -997,12 +1035,12 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
       brudd.push(`${navn}: spiller(e) uten lagkamerat fra samme gruppe: ${utenGruppe.map(n => '#' + n).join(', ')}.`);
     }
 
-    // Trener. Bare relevant hvis det finnes deltakende trenere i det hele tatt
+    // Trener (hardt krav). Bare relevant hvis det finnes deltakende trenere.
     const finnesDeltakendeTrenere = [...ktx.trenerTilg.values()].some(t => t.aktiv);
     if (finnesDeltakendeTrenere) {
       const trenerNavn = trenerForLag(team, ktx);
       if (trenerNavn.length === 0)
-        brudd.push(`${navn}: ingen spiller med tilgjengelig forelder-trener.`);
+        brudd.push(`⚠ ${navn}: ingen spiller med tilgjengelig forelder-trener (hardt krav).`);
     }
   }
 
