@@ -915,7 +915,7 @@ function graadigTilordne(ktx, seed) {
     }
     let plassering;
     if (kandidater.length === 0) {
-      // Ingen plass som passer både tid og størrelse — prøv tid uten størrelse
+      // Ingen plass som passer både tid og størrelse, prøv tid uten størrelse
       const t = [];
       for (let i = 0; i < ktx.input.antallLag; i++) {
         if (ktx.spillerKanLagIdx(nr, i)) t.push(i);

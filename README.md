@@ -9,10 +9,20 @@ balanseringskrav.
 Alt kjører lokalt i nettleseren. Ingen pålogging, ingen skytjeneste,
 ingen kostnad.
 
-## Kjøre verktøyet
+## Prøve det
 
-Last ned eller klon repoet og åpne `index.html` i en hvilken som helst
-moderne nettleser. Det er ingen avhengigheter, og ingen byggesteg.
+Den enkleste måten er å åpne den publiserte versjonen:
+
+**https://jenskm.github.io/lagforslag-generator/**
+
+All data lagres lokalt i din egen nettleser, ingenting sendes til en
+server.
+
+## Kjøre lokalt
+
+Hvis du heller vil kjøre verktøyet selv (lokalt): last ned eller klon repoet og
+åpne `index.html` i en hvilken som helst moderne nettleser. Det er
+ingen avhengigheter og ingen byggesteg.
 
 ## Funksjoner
 
