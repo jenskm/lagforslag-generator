@@ -97,12 +97,12 @@
           <label>Maks. spillere per lag:
             <input type="number" id="maksSpillere" min="3" max="30" value="7">
           </label>
-          <label>Kamplengde (min):
-            <input type="number" id="varighet" min="1" max="240" value="40">
-          </label>
         </div>
-        <small class="formathjelp">Kamptider: starttidspunkt på formatet <code>HH:MM</code>, kommaseparert. F.eks. <code>10:00, 11:30, 13:00</code>.</small>
-        <div id="lagTider"></div>
+        <label>Kamptider (kommaseparert):
+          <input type="text" id="slotsInput" placeholder="F.eks. Lør 10:00, Lør 11:30, Søn 09:00, Søn 11:00">
+        </label>
+        <small class="formathjelp">Definér kamptidene som tekstnavn. Kan inneholde klokkeslett, dato, dagnavn eller hva som helst. Lag og spillere markeres som tilgjengelig for hver kamptid.</small>
+        <div id="lagSlotsContainer"></div>
       </div>
 
       <div class="oppsett">
@@ -112,7 +112,7 @@
           <button id="velgIngenSpillere">Velg ingen</button>
           <span class="info">Valgte spillere: <span id="antallValgte">0</span></span>
         </div>
-        <small class="formathjelp">Tilgjengelige tider: ett eller flere intervall på formatet <code>HH:MM - HH:MM</code>, kommaseparert. F.eks. <code>10:00 - 12:00</code> eller <code>09:00 - 11:00, 13:00 - 15:30</code>. Tom = alle tider.</small>
+        <small class="formathjelp">Huk av hvilke kamptider hver spiller kan delta på. Hvis ingen kamptider er definert vises ingen avkrysningsbokser.</small>
         <table id="deltakereTabell">
           <thead>
             <tr>
@@ -121,7 +121,7 @@
               <th data-sort="navn" class="sortable">Navn</th>
               <th data-sort="gruppe" class="sortable">Gruppe</th>
               <th data-sort="ferdighet" class="sortable">Ferd.</th>
-              <th>Tilgjengelige tider</th>
+              <th>Tilgjengelig for kamptid</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -204,10 +204,12 @@
           </li>
           <li>
             <strong>Generer lag:</strong> Sett opp den aktuelle turneringen (antall lag,
-            kamptider, lagstørrelse, kamplengde), velg hvem som deltar, og la generatoren
-            foreslå flere alternative lagsammensetninger. Hvert forslag kan eksporteres til
-            CSV (kan leses av Excel o.l.) med lagoppsett, kamptider, forelder-trenere
-            og mulige lånespillere per kamptid.
+            min/maks per lag og en liste kamptider). Kamptider er navngitte tidspunkter
+            som du selv definerer (f.eks. <code>Lør 10:00, Lør 11:30</code>). Marker hvilke
+            kamptider hvert lag spiller, og hvilke kamptider hver spiller kan delta på.
+            Generatoren foreslår flere alternative lagsammensetninger. Hvert forslag kan
+            eksporteres til CSV med lagoppsett, kamptider, forelder-trenere og mulige
+            lånespillere per kamptid.
           </li>
           <li>
             <strong>Data:</strong> Eksporter en sikkerhetskopi (JSON) eller importer data fra

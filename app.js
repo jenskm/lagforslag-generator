@@ -550,53 +550,23 @@ function byggGenererUI() {
   if (o?.antallLag) document.getElementById('antallLag').value = o.antallLag;
   if (o?.minSpillere) document.getElementById('minSpillere').value = o.minSpillere;
   if (o?.maksSpillere) document.getElementById('maksSpillere').value = o.maksSpillere;
-  if (o?.varighet) document.getElementById('varighet').value = o.varighet;
-  byggLagTider();
+  document.getElementById('slotsInput').value = (o?.slots || []).join(', ');
+  byggLagSlots();
   byggDeltakerListe();
   byggTrenerListe();
-  validerAlleTidsfelt();
   gjenopprettForslag();
+}
+
+function gjeldendeSlots() {
+  return document.getElementById('slotsInput').value
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
 function autoLagreOppsett() {
   data.sisteOppsett = lesGenererInput();
   lagre();
-}
-
-function settUgyldighet(el, ugyldige, format) {
-  if (ugyldige.length > 0) {
-    el.classList.add('ugyldig');
-    el.title = `Ugyldig format på: ${ugyldige.join(', ')}\nForventet: ${format}`;
-    return false;
-  }
-  el.classList.remove('ugyldig');
-  el.title = '';
-  return true;
-}
-
-function validerStarttider(el) {
-  const tekst = el.value || '';
-  const ugyldige = tekst.split(/[,;]/).map(s => s.trim()).filter(Boolean)
-    .filter(t => parseHHMM(t) === null);
-  return settUgyldighet(el, ugyldige, 'HH:MM (f.eks. 10:00)');
-}
-
-function validerIntervaller(el) {
-  const tekst = el.value || '';
-  const ugyldige = tekst.split(',').map(s => s.trim()).filter(Boolean)
-    .filter(t => parseInterval(t) === null);
-  return settUgyldighet(el, ugyldige, 'HH:MM - HH:MM (f.eks. 10:00 - 15:30)');
-}
-
-function validerInput(el) {
-  if (el.closest('#lagTider')) return validerStarttider(el);
-  if (el.dataset.felt === 'tider') return validerIntervaller(el);
-  return true;
-}
-
-function validerAlleTidsfelt() {
-  document.querySelectorAll('#lagTider input[type="text"]').forEach(validerStarttider);
-  document.querySelectorAll('#deltakereTabell [data-felt="tider"]').forEach(validerIntervaller);
 }
 
 function dataSignatur() {
@@ -625,18 +595,27 @@ function gjenopprettForslag() {
   tom.hidden = false;
 }
 
-function byggLagTider() {
+function byggLagSlots() {
   const antall = parseInt(document.getElementById('antallLag').value, 10) || 1;
-  const div = document.getElementById('lagTider');
+  const slots = gjeldendeSlots();
+  const div = document.getElementById('lagSlotsContainer');
   div.innerHTML = '';
+  if (slots.length === 0) {
+    div.innerHTML = '<p class="info">Definér kamptider over for å sette dem på lagene.</p>';
+    return;
+  }
+  const lagrede = data.sisteOppsett?.lagSlots || [];
   for (let i = 0; i < antall; i++) {
-    const lagrede = data.sisteOppsett?.lagTider?.[i] || '';
+    const valgte = new Set(lagrede[i] || []);
     const rad = document.createElement('div');
     rad.className = 'lagRad';
-    rad.innerHTML = `
-      <label>Lag ${i + 1}</label>
-      <input type="text" data-lag="${i}" value="${escapeHtml(lagrede)}" placeholder="HH:MM, kommaseparert. F.eks. 10:00, 11:30">
-    `;
+    const checkboxes = slots.map(slot => `
+      <label class="slotValg">
+        <input type="checkbox" data-lag="${i}" data-slot="${escapeHtml(slot)}" ${valgte.has(slot) ? 'checked' : ''}>
+        ${escapeHtml(slot)}
+      </label>
+    `).join('');
+    rad.innerHTML = `<label class="lagNavn">Lag ${i + 1}</label>${checkboxes}`;
     div.appendChild(rad);
   }
 }
@@ -647,32 +626,42 @@ function byggDeltakerListe() {
   oppdaterSortIndikator('deltakereTabell', sortering.deltakere);
   const sorterte = sortert(data.spillere, sortering.deltakere);
   const lagretSpillere = data.sisteOppsett?.spillere || {};
+  const slots = gjeldendeSlots();
 
   for (const s of sorterte) {
     const lagret = lagretSpillere[s.nr];
     const deltar = lagret?.deltar !== false;
-    const tider = lagret?.tider || '';
+    // For nye spillere som ikke har lagret slot-valg: default = alle (alle hakes av).
+    const valgte = lagret?.slots ? new Set(lagret.slots) : new Set(slots);
     const tr = document.createElement('tr');
     tr.dataset.nr = s.nr;
+    const slotCheckboxes = slots.length === 0
+      ? '<span class="info">Ingen kamptider definert</span>'
+      : slots.map(slot => `
+          <label class="slotValg">
+            <input type="checkbox" data-felt="slot" data-slot="${escapeHtml(slot)}" ${valgte.has(slot) ? 'checked' : ''}>
+            ${escapeHtml(slot)}
+          </label>
+        `).join('');
     tr.innerHTML = `
       <td><input type="checkbox" data-felt="deltar" ${deltar ? 'checked' : ''}></td>
       <td>${s.nr}</td>
       <td>${escapeHtml(s.navn)}</td>
       <td>${escapeHtml(gruppeNavnFor(s.gruppeId))}</td>
       <td>${s.ferdighet}</td>
-      <td><input type="text" data-felt="tider" value="${escapeHtml(tider)}" placeholder="alle (eller HH:MM - HH:MM)"></td>
+      <td class="slotCelle">${slotCheckboxes}</td>
     `;
     tbody.appendChild(tr);
   }
   oppdaterAntallValgte();
 
-  tbody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+  tbody.querySelectorAll('input[type="checkbox"][data-felt="deltar"]').forEach(cb => {
     cb.addEventListener('change', oppdaterAntallValgte);
   });
 }
 
 function oppdaterAntallValgte() {
-  const n = document.querySelectorAll('#deltakereTabell tbody input[type="checkbox"]:checked').length;
+  const n = document.querySelectorAll('#deltakereTabell tbody input[data-felt="deltar"]:checked').length;
   document.getElementById('antallValgte').textContent = n;
 }
 
@@ -706,22 +695,27 @@ function lesGenererInput() {
   let maksSpillere = parseInt(document.getElementById('maksSpillere').value, 10);
   if (!Number.isFinite(minSpillere) || minSpillere < 3) minSpillere = 3;
   if (!Number.isFinite(maksSpillere) || maksSpillere < 3) maksSpillere = Math.max(3, minSpillere);
-  const varighet = parseInt(document.getElementById('varighet').value, 10) || 40;
 
-  const lagTider = [];
+  const slots = gjeldendeSlots();
+
+  const lagSlots = [];
   for (let i = 0; i < antallLag; i++) {
-    const inp = document.querySelector(`#lagTider input[data-lag="${i}"]`);
-    const tider = (inp?.value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
-    lagTider.push(tider);
+    const valgte = [];
+    document.querySelectorAll(`#lagSlotsContainer input[data-lag="${i}"]:checked`).forEach(cb => {
+      valgte.push(cb.dataset.slot);
+    });
+    lagSlots.push(valgte);
   }
 
   const spillere = {};
   document.querySelectorAll('#deltakereTabell tbody tr').forEach(tr => {
     const nr = parseInt(tr.dataset.nr, 10);
     const deltar = tr.querySelector('[data-felt="deltar"]').checked;
-    const tider = tr.querySelector('[data-felt="tider"]').value
-      .split(/[,;]/).map(s => s.trim()).filter(Boolean);
-    spillere[nr] = { deltar, tider: tider.join(', ') };
+    const valgteSlots = [];
+    tr.querySelectorAll('input[data-felt="slot"]:checked').forEach(cb => {
+      valgteSlots.push(cb.dataset.slot);
+    });
+    spillere[nr] = { deltar, slots: valgteSlots };
   });
 
   const trenere = {};
@@ -731,7 +725,7 @@ function lesGenererInput() {
     trenere[id] = { deltar };
   });
 
-  return { antallLag, minSpillere, maksSpillere, varighet, lagTider, spillere, trenere };
+  return { antallLag, minSpillere, maksSpillere, slots, lagSlots, spillere, trenere };
 }
 
 // =============================================================
@@ -739,50 +733,6 @@ function lesGenererInput() {
 // =============================================================
 const ANTALL_FORSOEK = 60;
 const ANTALL_FORSLAG = 5;
-
-function parseHHMM(s) {
-  const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(s);
-  if (!m) return null;
-  const h = parseInt(m[1], 10);
-  const mn = parseInt(m[2], 10);
-  if (h > 23 || mn > 59) return null;
-  return h * 60 + mn;
-}
-
-function parseInterval(s) {
-  const m = /^\s*(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*$/.exec(s);
-  if (!m) return null;
-  const h1 = parseInt(m[1], 10), mn1 = parseInt(m[2], 10);
-  const h2 = parseInt(m[3], 10), mn2 = parseInt(m[4], 10);
-  if (h1 > 23 || mn1 > 59 || h2 > 23 || mn2 > 59) return null;
-  const start = h1 * 60 + mn1;
-  const slutt = h2 * 60 + mn2;
-  if (slutt <= start) return null;
-  return [start, slutt];
-}
-
-function parseIntervaller(tekst) {
-  const deler = (tekst || '').split(',').map(s => s.trim()).filter(Boolean);
-  const ut = [];
-  for (const d of deler) {
-    const r = parseInterval(d);
-    if (!r) return null;
-    ut.push(r);
-  }
-  return ut;
-}
-
-function tiderKonflikter(t1, t2, varighet) {
-  const a = parseHHMM(t1);
-  const b = parseHHMM(t2);
-  if (a === null || b === null) return t1 === t2;
-  return Math.abs(a - b) < varighet;
-}
-
-function gameWithinIntervaller(start, slutt, intervaller) {
-  if (start === null) return false;
-  return intervaller.some(([a, b]) => a <= start && b >= slutt);
-}
 
 function rng(seed) {
   let s = seed | 0;
@@ -807,18 +757,15 @@ function bygKontekst(input) {
   const spillerVedNr = new Map();
   for (const s of data.spillere) spillerVedNr.set(s.nr, s);
 
-  const varighet = input.varighet;
   const aktive = [];
-  // nr -> intervaller [[start, slutt]] | null (=alle tider)
-  const spillerIntervaller = new Map();
+  // nr -> Set<slot>: hvilke slots spilleren kan delta på
+  const spillerSlots = new Map();
   for (const [nrStr, v] of Object.entries(input.spillere)) {
     const nr = parseInt(nrStr, 10);
     if (!v.deltar) continue;
     if (!spillerVedNr.has(nr)) continue;
     aktive.push(nr);
-    const tekst = (v.tider || '').trim();
-    const intervaller = tekst ? (parseIntervaller(tekst) || []) : null;
-    spillerIntervaller.set(nr, intervaller);
+    spillerSlots.set(nr, new Set(v.slots || []));
   }
 
   // id -> { aktiv: bool }
@@ -839,48 +786,36 @@ function bygKontekst(input) {
   }
 
   function spillerKanLagIdx(nr, lagIdx) {
-    const intervaller = spillerIntervaller.get(nr);
-    if (intervaller === null) return true; // alle tider OK
-    const lagT = input.lagTider[lagIdx];
-    if (!lagT.length) return true;
-    // Spilleren må kunne delta på ALLE GYLDIGE kamper for laget.
-    // Ugyldige kamptider hoppes over (de rapporteres som brudd separat).
-    const gyldige = lagT.map(parseHHMM).filter(t => t !== null);
-    if (gyldige.length === 0) return true;
-    return gyldige.every(start => gameWithinIntervaller(start, start + varighet, intervaller));
+    const lagS = input.lagSlots[lagIdx] || [];
+    if (lagS.length === 0) return true; // ingen kamptider angitt for laget
+    const spillerS = spillerSlots.get(nr) || new Set();
+    // Spilleren må kunne delta på alle lagets kamptider
+    return lagS.every(slot => spillerS.has(slot));
   }
 
-  function spillerKanPaaTid(nr, tid) {
-    const intervaller = spillerIntervaller.get(nr);
-    if (intervaller === null) return true;
-    const start = parseHHMM(tid);
-    if (start === null) return false;
-    return gameWithinIntervaller(start, start + varighet, intervaller);
+  function spillerKanSlot(nr, slot) {
+    const spillerS = spillerSlots.get(nr);
+    return spillerS ? spillerS.has(slot) : false;
   }
 
   function spillerHarTilgjengeligTrener(nr) {
-    // Trener er "tilstede" så lenge barnet er på laget (tidsmessig følger
-    // foreldren barnet) og treneren er markert som deltakende.
     return tilgjengeligeTrenereForBarn(nr).length > 0;
   }
 
-  // Gjennomsnittlig ferdighet i hele deltakerpoolen. Algoritmen prøver å
-  // bringe hvert lags ferdighetssnitt så nært dette tallet som mulig.
   let totalFerdighet = 0;
   for (const nr of aktive) totalFerdighet += spillerVedNr.get(nr).ferdighet;
   const snittFerdighet = aktive.length > 0 ? totalFerdighet / aktive.length : 0;
-  // Ideell lagstørrelse
   const idealSize = aktive.length / Math.max(1, input.antallLag);
 
   return {
     input,
     aktive,
     spillerVedNr,
-    spillerIntervaller,
+    spillerSlots,
     trenerTilg,
     tilgjengeligeTrenereForBarn,
     spillerKanLagIdx,
-    spillerKanPaaTid,
+    spillerKanSlot,
     spillerHarTilgjengeligTrener,
     snittFerdighet,
     idealSize
@@ -1027,16 +962,14 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
   const min = ktx.input.minSpillere;
   const maks = ktx.input.maksSpillere;
   if (uplassert.length > 0) {
-    brudd.push(`⚠ ${uplassert.length} spiller(e) kunne ikke plasseres på noe lag — tilgjengelige tider matcher ingen kamptider: ${uplassert.map(n => '#' + n).join(', ')}.`);
+    brudd.push(`⚠ ${uplassert.length} spiller(e) kunne ikke plasseres på noe lag: tilgjengelige tider matcher ingen kamptider: ${uplassert.map(n => '#' + n).join(', ')}.`);
   }
   for (let i = 0; i < lag.length; i++) {
     const team = lag[i];
     const navn = `Lag ${i + 1}`;
 
-    // Ugyldige kamptider rapporteres så brukeren ser at de er hoppet over.
-    const ugyldigeTider = (ktx.input.lagTider[i] || []).filter(t => parseHHMM(t) === null);
-    if (ugyldigeTider.length > 0) {
-      brudd.push(`${navn}: ugyldig(e) kamptid(er) ble ignorert: ${ugyldigeTider.join(', ')}.`);
+    if ((ktx.input.lagSlots[i] || []).length === 0) {
+      brudd.push(`${navn}: ingen kamptider valgt for dette laget.`);
     }
 
     if (team.length < min)
@@ -1061,10 +994,10 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
       return !team.some(o => o !== n && ktx.spillerVedNr.get(o).gruppeId === g);
     });
     if (utenGruppe.length > 0) {
-      brudd.push(`${navn}: spiller(e) uten lagkamerat fra samme gruppe — ${utenGruppe.map(n => '#' + n).join(', ')}.`);
+      brudd.push(`${navn}: spiller(e) uten lagkamerat fra samme gruppe: ${utenGruppe.map(n => '#' + n).join(', ')}.`);
     }
 
-    // Trener — bare relevant hvis det finnes deltakende trenere i det hele tatt
+    // Trener. Bare relevant hvis det finnes deltakende trenere i det hele tatt
     const finnesDeltakendeTrenere = [...ktx.trenerTilg.values()].some(t => t.aktiv);
     if (finnesDeltakendeTrenere) {
       const trenerNavn = trenerForLag(team, ktx);
@@ -1179,9 +1112,9 @@ function eksporterForslagCsv(forslag, idx, ktx) {
   rader.push('');
 
   forslag.lag.forEach((team, i) => {
-    const tider = (ktx.input.lagTider[i] || []).join(', ');
+    const slots = (ktx.input.lagSlots[i] || []).join(', ');
     rader.push(`Lag ${i + 1}`);
-    if (tider) rader.push(`Kamptider,${csvEsc(tider)}`);
+    if (slots) rader.push(`Kamptider,${csvEsc(slots)}`);
     rader.push('Spillernr,Navn,Gruppe,Ferdighet,Forelder-trener');
     const sortert = [...team].sort((a, b) => a - b);
     for (const nr of sortert) {
@@ -1200,13 +1133,13 @@ function eksporterForslagCsv(forslag, idx, ktx) {
       ].join(','));
     }
 
-    const laan = laaneKandidaterPerTid(team, i, ktx, forslag.lag);
+    const laan = laaneKandidaterPerSlot(team, i, ktx, forslag.lag);
     if (laan.length > 0) {
       rader.push('Mulige lånespillere');
       rader.push('Kamptid,Spillere');
-      for (const { tid, kandidater } of laan) {
+      for (const { slot, kandidater } of laan) {
         const liste = kandidater.map(n => '#' + n).join(', ');
-        rader.push(`${csvEsc(tid)},${csvEsc(liste)}`);
+        rader.push(`${csvEsc(slot)},${csvEsc(liste)}`);
       }
     }
     rader.push(''); // tom rad mellom lag
@@ -1232,7 +1165,7 @@ function eksporterForslagCsv(forslag, idx, ktx) {
 }
 
 function tegnLag(team, i, ktx, alleLag) {
-  const lagT = ktx.input.lagTider[i];
+  const lagS = ktx.input.lagSlots[i] || [];
   const trenere = trenerForLag(team, ktx);
   let lagSum = 0;
   for (const nr of team) lagSum += ktx.spillerVedNr.get(nr).ferdighet;
@@ -1245,7 +1178,7 @@ function tegnLag(team, i, ktx, alleLag) {
   return `
     <div class="lagBoks">
       <h4>Lag ${i + 1} <span class="meta">${team.length} sp · snitt ${snitt}</span></h4>
-      <div class="tider">${lagT.length ? 'Tider: ' + escapeHtml(lagT.join(', ')) : '(ingen kamptider satt)'}</div>
+      <div class="tider">${lagS.length ? 'Kamptider: ' + escapeHtml(lagS.join(', ')) : '(ingen kamptider valgt)'}</div>
       <ul>
         ${sortert.map(nr => {
           const s = ktx.spillerVedNr.get(nr);
@@ -1267,36 +1200,35 @@ function tegnLag(team, i, ktx, alleLag) {
   `;
 }
 
-function laaneKandidaterPerTid(team, lagIdx, ktx, alleLag) {
-  // For hver kamptid på dette laget, identifiser spillere fra andre lag
-  // hvis lag IKKE har kamp på samme tid, og som selv er tilgjengelige.
-  const lagT = ktx.input.lagTider[lagIdx];
-  if (!lagT.length) return [];
-  const varighet = ktx.input.varighet;
+function laaneKandidaterPerSlot(team, lagIdx, ktx, alleLag) {
+  // For hver slot dette laget spiller, finn spillere fra andre lag som
+  // (a) er markert som "kan lånes", (b) selv kan delta på denne slot'en,
+  // og (c) tilhører et lag som ikke spiller samme slot.
+  const lagS = ktx.input.lagSlots[lagIdx] || [];
+  if (lagS.length === 0) return [];
   const ut = [];
-  for (const tid of lagT) {
+  for (const slot of lagS) {
     const kandidater = [];
     for (let i = 0; i < ktx.input.antallLag; i++) {
       if (i === lagIdx) continue;
-      const harKonflikt = ktx.input.lagTider[i]
-        .some(t => tiderKonflikter(t, tid, varighet));
-      if (harKonflikt) continue;
+      const annetLagSlots = ktx.input.lagSlots[i] || [];
+      if (annetLagSlots.includes(slot)) continue; // konflikt
       for (const nr of alleLag[i]) {
         const sp = ktx.spillerVedNr.get(nr);
         if (!sp || !sp.kanLaane) continue;
-        if (ktx.spillerKanPaaTid(nr, tid)) kandidater.push(nr);
+        if (ktx.spillerKanSlot(nr, slot)) kandidater.push(nr);
       }
     }
-    if (kandidater.length > 0) ut.push({ tid, kandidater });
+    if (kandidater.length > 0) ut.push({ slot, kandidater });
   }
   return ut;
 }
 
 function laaneForslag(team, lagIdx, ktx, alleLag) {
-  const linjer = laaneKandidaterPerTid(team, lagIdx, ktx, alleLag).map(({ tid, kandidater }) => {
+  const linjer = laaneKandidaterPerSlot(team, lagIdx, ktx, alleLag).map(({ slot, kandidater }) => {
     const navn = kandidater.slice(0, 6).map(nr => '#' + nr).join(', ');
     const merOver = kandidater.length > 6 ? ` (+${kandidater.length - 6})` : '';
-    return `<div><strong>${escapeHtml(tid)}:</strong> kan låne ${navn}${merOver}</div>`;
+    return `<div><strong>${escapeHtml(slot)}:</strong> kan låne ${navn}${merOver}</div>`;
   });
   if (!linjer.length) return '';
   return `<div class="laaneBoks">${linjer.join('')}</div>`;
@@ -1374,39 +1306,50 @@ function init() {
   });
   document.getElementById('eksporterSpillereCsv').addEventListener('click', eksporterSpillereCsv);
 
-  document.getElementById('antallLag').addEventListener('change', byggLagTider);
+  // Endringer i antall lag eller kamptid-listen krever ombygd UI.
+  document.getElementById('antallLag').addEventListener('change', () => {
+    byggLagSlots();
+    byggDeltakerListe();
+  });
+  document.getElementById('slotsInput').addEventListener('change', () => {
+    // Når nye kamptider legges til, propager dem som "huket av" for eksisterende
+    // spillere som allerede har lagrede slot-valg. Det unngår at brukeren må gå
+    // gjennom hver spiller og huke av nye slots manuelt.
+    const nyeSlots = gjeldendeSlots();
+    const nyttSett = new Set(nyeSlots);
+    const gamleSlots = data.sisteOppsett?.slots || [];
+    const tilfoyde = nyeSlots.filter(s => !gamleSlots.includes(s));
+    if (data.sisteOppsett?.spillere && tilfoyde.length > 0) {
+      for (const v of Object.values(data.sisteOppsett.spillere)) {
+        if (!Array.isArray(v.slots)) continue;
+        const beholdt = v.slots.filter(s => nyttSett.has(s));
+        v.slots = [...new Set([...beholdt, ...tilfoyde])];
+      }
+    }
+    byggLagSlots();
+    byggDeltakerListe();
+  });
 
   // Auto-lagring av Generer-fanen: én listener på hele seksjonen
   document.getElementById('generer').addEventListener('change', e => {
     if (e.target.matches('button')) return;
     autoLagreOppsett();
   });
-  // Validering av tidsfelt på hver tastetrykk
-  document.getElementById('generer').addEventListener('input', e => {
-    if (e.target.matches('input[type="text"]')) validerInput(e.target);
-  });
 
   document.getElementById('velgAlleSpillere').addEventListener('click', () => {
-    document.querySelectorAll('#deltakereTabell tbody input[type="checkbox"]')
+    document.querySelectorAll('#deltakereTabell tbody input[data-felt="deltar"]')
       .forEach(cb => cb.checked = true);
     oppdaterAntallValgte();
+    autoLagreOppsett();
   });
   document.getElementById('velgIngenSpillere').addEventListener('click', () => {
-    document.querySelectorAll('#deltakereTabell tbody input[type="checkbox"]')
+    document.querySelectorAll('#deltakereTabell tbody input[data-felt="deltar"]')
       .forEach(cb => cb.checked = false);
     oppdaterAntallValgte();
+    autoLagreOppsett();
   });
 
   document.getElementById('genererKnapp').addEventListener('click', () => {
-    validerAlleTidsfelt();
-    const ugyldige = document.querySelectorAll('#generer input.ugyldig');
-    if (ugyldige.length > 0) {
-      const fortsett = confirm(
-        `${ugyldige.length} felt har ugyldig tidsformat (rødmerket).\n\n` +
-        `Disse vil bli ignorert i beregningen og kan gi gale resultater. Fortsett likevel?`
-      );
-      if (!fortsett) return;
-    }
     const minRaw = parseInt(document.getElementById('minSpillere').value, 10);
     const maksRaw = parseInt(document.getElementById('maksSpillere').value, 10);
     if (!Number.isFinite(minRaw) || minRaw < 3 || !Number.isFinite(maksRaw) || maksRaw < 3) {
