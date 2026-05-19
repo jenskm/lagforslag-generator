@@ -869,6 +869,8 @@ function bygKontekst(input) {
   let totalFerdighet = 0;
   for (const nr of aktive) totalFerdighet += spillerVedNr.get(nr).ferdighet;
   const snittFerdighet = aktive.length > 0 ? totalFerdighet / aktive.length : 0;
+  // Ideell lagstørrelse
+  const idealSize = aktive.length / Math.max(1, input.antallLag);
 
   return {
     input,
@@ -880,7 +882,8 @@ function bygKontekst(input) {
     spillerKanLagIdx,
     spillerKanPaaTid,
     spillerHarTilgjengeligTrener,
-    snittFerdighet
+    snittFerdighet,
+    idealSize
   };
 }
 
@@ -967,8 +970,13 @@ function deltaSkaar(lagListe, nyNr, lagIdx, ktx) {
     s -= 3.0; // sterk preferanse: gi laget en trener-forelder
   }
 
-  // Foretrekk laveste lagstørrelse
-  s += lagListe.length * 0.25;
+  // Lagstørrelse: dytt mot ideell størrelse (aktive / antallLag). Kvadratisk
+  // avvik gjør at lag som allerede er over idealet straffes hardt for ytterligere
+  // tilskudd, mens lag under idealet får belønning.
+  const stoerrelseFoer = lagListe.length;
+  const avvikFoer = Math.pow(stoerrelseFoer - ktx.idealSize, 2);
+  const avvikEtter = Math.pow(stoerrelseFoer + 1 - ktx.idealSize, 2);
+  s += (avvikEtter - avvikFoer) * 4.0;
 
   return s;
 }
@@ -1005,11 +1013,11 @@ function skaarLoesning(lag, ktx) {
     if (!harTrener) s += 25;
   }
 
-  // Ulikhet i lagstørrelse
-  const stoerrelser = lag.map(l => l.length);
-  const minSt = Math.min(...stoerrelser);
-  const maxSt = Math.max(...stoerrelser);
-  s += (maxSt - minSt) * 1.5;
+  // Lagstørrelser: kvadratisk avvik fra ideell størrelse straffer
+  // ujevne lag tungt sammenlignet med andre myke krav.
+  for (const team of lag) {
+    s += Math.pow(team.length - ktx.idealSize, 2) * 10;
+  }
 
   return s;
 }
@@ -1063,6 +1071,14 @@ function identifiserBrudd(lag, ktx, uplassert = []) {
       if (trenerNavn.length === 0)
         brudd.push(`${navn}: ingen spiller med tilgjengelig forelder-trener.`);
     }
+  }
+
+  // Generell sjekk: ujevn lagstørrelse (mer enn 1 spillers forskjell).
+  const stoerrelser = lag.map(l => l.length);
+  const minSt = Math.min(...stoerrelser);
+  const maxSt = Math.max(...stoerrelser);
+  if (maxSt - minSt > 1) {
+    brudd.push(`Ujevn lagstørrelse: ${stoerrelser.join(' / ')} (anbefalt: maks 1 spillers forskjell).`);
   }
   return brudd;
 }
