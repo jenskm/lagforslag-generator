@@ -9,7 +9,7 @@ balanseringskrav.
 Alt kjører lokalt i nettleseren. Ingen pålogging, ingen skytjeneste,
 ingen kostnad.
 
-## Prøve det
+## Prøv det
 
 Den enkleste måten er å åpne den publiserte versjonen:
 
@@ -39,7 +39,7 @@ ingen avhengigheter og ingen byggesteg.
 
 ## Hvordan algoritmen fungerer
 
-Randomisert grådig tilordning kjøres mange ganger med ulike seeds. Hver
+Tilfeldig grådig tilordning kjøres mange ganger med ulike seeds. Hver
 løsning skåres på følgende krav:
 
 **Harde krav (må oppfylles, ellers ingen plassering):**
@@ -55,7 +55,7 @@ løsning skåres på følgende krav:
 - Hver spiller skal ha minst en lagkamerat fra samme gruppe
 - Lagene bør være omtrent like store
 
-De fem beste, distinkte løsningene presenteres. For hvert forslag
+De fem beste, unike løsningene presenteres. For hvert forslag
 listes også potensielle lånespillere fra andre lag (kun spillere som er
 markert som "Kan lånes").
 
